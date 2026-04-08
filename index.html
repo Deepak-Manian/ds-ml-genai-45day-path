@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>65-Day Lock In · Path of Mastery · Data Science / ML / AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Cinzel+Decorative:wght@400;700&family=Noto+Serif+JP:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Background -->
+  <div class="bg-layer" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-g1"></div>
+    <div class="bg-glow bg-g2"></div>
+    <div class="bg-glow bg-g3"></div>
+    <div class="vertical-kanji left-kanji">鍛錬　技術　勝利　知識　精進</div>
+    <div class="vertical-kanji right-kanji">修練　極意　覇道　創造　革命</div>
+  </div>
+
+  <!-- Elemental particle canvas -->
+  <canvas id="particle-canvas" class="element-particles active" style="position:fixed;inset:0;pointer-events:none;z-index:1;"></canvas>
+
+  <!-- Top banner -->
+  <div class="top-banner">
+    <div class="mon-left">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="none" stroke="#c8a84b" stroke-width="0.8"/>
+        <circle cx="12" cy="12" r="3" fill="#c8a84b"/>
+        <line x1="12" y1="1" x2="12" y2="5" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="12" y1="19" x2="12" y2="23" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="1" y1="12" x2="5" y2="12" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="19" y1="12" x2="23" y2="12" stroke="#c8a84b" stroke-width="0.8"/>
+      </svg>
+    </div>
+    <div class="top-banner-text">六十五日修練計画 · Data Science · Machine Learning · AI · Gen AI</div>
+    <div class="mon-right">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="none" stroke="#c8a84b" stroke-width="0.8"/>
+        <circle cx="12" cy="12" r="3" fill="#c8a84b"/>
+        <line x1="12" y1="1" x2="12" y2="5" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="12" y1="19" x2="12" y2="23" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="1" y1="12" x2="5" y2="12" stroke="#c8a84b" stroke-width="0.8"/>
+        <line x1="19" y1="12" x2="23" y2="12" stroke="#c8a84b" stroke-width="0.8"/>
+      </svg>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-inner">
+      <div class="brush-title-wrap">
+        <div class="kanji-number">六五</div>
+        <div class="title-stack">
+          <h1 class="site-title">LOCK IN</h1>
+          <div class="title-jp">修練の道 — The Path of Mastery · 65 Days</div>
+        </div>
+        <div class="kanji-number secondary">日</div>
+      </div>
+      <div class="header-stats">
+        <div class="stat-scroll">
+          <div class="stat-inner">
+            <span class="stat-kanji">完</span>
+            <div class="stat-nums">
+              <span class="stat-big" id="count-done">0</span>
+              <span class="stat-small">conquered</span>
+            </div>
+          </div>
+        </div>
+        <div class="stat-scroll">
+          <div class="stat-inner">
+            <span class="stat-kanji">総</span>
+            <div class="stat-nums">
+              <span class="stat-big" id="count-total">0</span>
+              <span class="stat-small">total skills</span>
+            </div>
+          </div>
+        </div>
+        <div class="progress-talisman">
+          <div class="talisman-inner">
+            <svg class="progress-ring" width="64" height="64" viewBox="0 0 64 64">
+              <circle class="ring-track" cx="32" cy="32" r="26"/>
+              <circle class="ring-fill" id="ring-fill" cx="32" cy="32" r="26"/>
+              <text class="ring-text" id="ring-pct" x="32" y="37" text-anchor="middle">0%</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="header-progress-wrap">
+      <div class="progress-label-left">Day 1</div>
+      <div class="progress-track">
+        <div class="progress-fill" id="global-bar"></div>
+      </div>
+      <div class="progress-label-right">Mastery</div>
+    </div>
+  </header>
+
+  <!-- Filter nav -->
+  <div class="scroll-nav-wrap">
+    <div class="scroll-nav-inner">
+      <div class="scroll-tabs" id="filter-tabs">
+        <button class="scroll-tab active" data-filter="all">
+          <span class="tab-jp">全て</span>
+          <span class="tab-en">All Skills</span>
+        </button>
+        <button class="scroll-tab" data-filter="core">
+          <span class="tab-jp">基礎</span>
+          <span class="tab-en">Core</span>
+        </button>
+        <button class="scroll-tab" data-filter="hot">
+          <span class="tab-jp">🔥</span>
+          <span class="tab-en">Hot 2025</span>
+        </button>
+        <button class="scroll-tab" data-filter="advanced">
+          <span class="tab-jp">奥義</span>
+          <span class="tab-en">Advanced</span>
+        </button>
+        <button class="scroll-tab" data-filter="undone">
+          <span class="tab-jp">未</span>
+          <span class="tab-en">Remaining</span>
+        </button>
+        <button class="scroll-tab" data-filter="done">
+          <span class="tab-jp">完</span>
+          <span class="tab-en">Completed</span>
+        </button>
+        <button class="reset-tab" id="reset-btn">
+          <span class="tab-jp">零</span>
+          <span class="tab-en">Reset</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main id="main"></main>
+
+  <!-- Motivation popup -->
+  <div class="motivation-overlay" id="motivation-overlay">
+    <div class="motivation-card" id="motivation-card">
+      <div class="motivation-card-top">
+        <span class="motivation-element-symbol">完</span>
+        <div class="motivation-skill-name">Skill Conquered</div>
+        <div class="motivation-divider"></div>
+        <div class="motivation-quote">"The struggle itself is enough to fill a man's heart."</div>
+        <div class="motivation-quote-author">— Albert Camus</div>
+      </div>
+      <div class="motivation-card-bottom">
+        <span class="motivation-progress-note">Keep pushing.</span>
+        <button class="motivation-close" onclick="closeMotivation()">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-mon">
+        <svg width="36" height="36" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="#c8a84b" stroke-width="0.8" opacity="0.4"/>
+          <circle cx="18" cy="18" r="4" fill="#c8a84b" opacity="0.4"/>
+          <line x1="18" y1="2" x2="18" y2="9" stroke="#c8a84b" stroke-width="0.8" opacity="0.4"/>
+          <line x1="18" y1="27" x2="18" y2="34" stroke="#c8a84b" stroke-width="0.8" opacity="0.4"/>
+          <line x1="2" y1="18" x2="9" y2="18" stroke="#c8a84b" stroke-width="0.8" opacity="0.4"/>
+          <line x1="27" y1="18" x2="34" y2="18" stroke="#c8a84b" stroke-width="0.8" opacity="0.4"/>
+        </svg>
+      </div>
+      <p class="footer-text">65 days to mastery · Progress saved to your device · Zero excuses</p>
+      <div class="footer-divider"></div>
+      <p class="footer-sub">不断の努力が成功への唯一の道 — Relentless effort is the only path to success</p>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
