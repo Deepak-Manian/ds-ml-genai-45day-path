@@ -7,7 +7,7 @@
   <meta name="description" content="65-Day Lock In roadmap for mastering Data Science, Machine Learning, and AI. Track your progress across 139 skills from Python to GenAI." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" size="32x32" href="./Gojo.png">
@@ -23,23 +23,22 @@
   <header class="site-header glass-header">
     <div class="header-inner">
       <span class="header-brand">PATH OF MASTERY</span>
-      <!-- Desktop Nav -->
       <nav class="header-nav" id="header-nav">
-        <a href="#" class="active">Phases</a>
-        <a href="#">Roadmap</a>
-        <a href="#">Stats</a>
-        <a href="#">Archive</a>
+        <a href="#" class="active" data-view="phases">Phases</a>
+        <a href="#" data-view="roadmap">Roadmap</a>
+        <a href="#" data-view="stats">Stats</a>
+        <a href="#" data-view="archive">Archive</a>
       </nav>
       <div class="header-right">
         <div class="day-badge">
-          <span class="day-text" id="day-counter">DAY 24/65</span>
+          <span class="day-text" id="day-counter">NOT STARTED</span>
           <div class="lock-dot"></div>
           <span class="lock-text">LOCK IN</span>
         </div>
-        <button class="header-icon-btn" aria-label="Notifications">
+        <button class="header-icon-btn notif-badge" id="notif-btn" aria-label="Notifications">
           <span class="material-symbols-outlined">notifications</span>
         </button>
-        <button class="header-icon-btn" aria-label="Settings">
+        <button class="header-icon-btn" id="settings-btn" aria-label="Settings">
           <span class="material-symbols-outlined">settings</span>
         </button>
         <div class="header-avatar">
@@ -66,6 +65,26 @@
         <button class="motivation-close" onclick="closeMotivation()">Continue →</button>
       </div>
     </div>
+  </div>
+
+  <!-- Notification Panel -->
+  <div class="panel-overlay" id="notif-overlay"></div>
+  <div class="slide-panel" id="notif-panel">
+    <div class="panel-header">
+      <span class="panel-title">Notifications</span>
+      <button class="panel-close" id="notif-close"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="panel-body" id="notif-body"></div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="panel-overlay" id="settings-overlay"></div>
+  <div class="slide-panel" id="settings-panel">
+    <div class="panel-header">
+      <span class="panel-title">Settings</span>
+      <button class="panel-close" id="settings-close"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="panel-body" id="settings-body"></div>
   </div>
 
   <footer>
