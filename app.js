@@ -8,6 +8,15 @@ let searchQuery = '';
 let currentView = 'phases';
 let settings = { compactCards: false };
 
+let journalEntries = {};
+let journalSelectedDay = 1;
+
+const SYNC_BUCKET_KEY = 'lockin_sync_bucket';
+const SYNC_ENABLED_KEY = 'lockin_sync_enabled';
+
+let syncBucket = localStorage.getItem(SYNC_BUCKET_KEY) || '';
+let syncEnabled = localStorage.getItem(SYNC_ENABLED_KEY) === 'true';
+
 // ─── Rank system ───────────────────────────────────────────────
 const RANKS = [
   { min: 0,   name: 'Initiate',           icon: 'person' },
@@ -164,10 +173,97 @@ const SKILL_ICONS_BY_PHASE = {
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if(r) checked = JSON.parse(r); } catch(e) { checked = {}; }
   try { const s = localStorage.getItem(SETTINGS_KEY); if(s) settings = { ...settings, ...JSON.parse(s) }; } catch(e) {}
+  try { const j = localStorage.getItem('lockin_journal'); if(j) journalEntries = JSON.parse(j); } catch(e) { journalEntries = {}; }
 }
-function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {} }
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+  if (syncEnabled) pushToCloud();
+}
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {} }
+function saveJournalState() {
+  try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+  if (syncEnabled) pushToCloud();
+}
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
+
+// ─── Cloud Sync ────────────────────────────────────────────────
+function generateSyncToken() {
+  const token = 'zm_sync_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  syncBucket = token;
+  localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
+  const input = document.getElementById('sync-token-input');
+  if (input) input.value = token;
+  showSyncStatus('New token generated. Uploading data...');
+  pushToCloud();
+}
+
+function showSyncStatus(msg) {
+  const status = document.getElementById('sync-status');
+  if (status) status.textContent = msg;
+}
+
+async function pushToCloud() {
+  if (!syncEnabled || !syncBucket) return;
+  const payload = {
+    checked,
+    startDate: localStorage.getItem(DAY_START_KEY),
+    journalEntries,
+    updatedAt: new Date().toISOString()
+  };
+  try {
+    const res = await fetch(`https://kvdb.io/${syncBucket}/data`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      showSyncStatus('Sync complete: Data uploaded.');
+    } else {
+      showSyncStatus('Sync failed to upload.');
+    }
+  } catch (err) {
+    showSyncStatus('Sync error: ' + err.message);
+  }
+}
+
+async function fetchFromCloud() {
+  if (!syncEnabled || !syncBucket) return;
+  try {
+    const res = await fetch(`https://kvdb.io/${syncBucket}/data`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data) {
+        let updated = false;
+        if (data.checked && JSON.stringify(data.checked) !== JSON.stringify(checked)) {
+          checked = data.checked;
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+          updated = true;
+        }
+        if (data.startDate && data.startDate !== localStorage.getItem(DAY_START_KEY)) {
+          localStorage.setItem(DAY_START_KEY, data.startDate);
+          updated = true;
+        }
+        if (data.journalEntries && JSON.stringify(data.journalEntries) !== JSON.stringify(journalEntries)) {
+          journalEntries = data.journalEntries;
+          try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+          updated = true;
+        }
+        if (updated) {
+          showSyncStatus('Sync complete: Local data updated.');
+          renderView();
+        } else {
+          showSyncStatus('Sync complete: Already up to date.');
+        }
+      }
+    } else if (res.status === 404) {
+      showSyncStatus('Sync: Cloud is empty. Uploading local data...');
+      pushToCloud();
+    } else {
+      showSyncStatus('Sync failed to download.');
+    }
+  } catch (err) {
+    showSyncStatus('Sync error: ' + err.message);
+  }
+}
 
 // ─── Stats ──────────────────────────────────────────────────────
 function getGlobalStats() {
@@ -461,13 +557,19 @@ function renderPhasesView() {
 
 function renderRoadmapView() {
   const main = document.getElementById('main');
-  const { done: totalDone, total: totalAll, pct: globalPct } = getGlobalStats();
+  const { done: totalDone, total: totalAll } = getGlobalStats();
   const firstIncomplete = findFirstIncompleteSection();
 
-  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
-    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">65-Day Roadmap</h1>
-    <p class="font-body-md text-on-surface-variant">Your journey from Initiate to Elite Practitioner — ${totalDone}/${totalAll} skills conquered</p>
-    <div class="flex flex-col gap-unit mt-4">`;
+  let html = `
+    <div class="col-span-12 md:col-start-3 md:col-span-8 mb-16 text-center">
+      <h1 class="font-display text-display text-primary mb-4 tracking-tighter text-3xl md:text-5xl">The Discipline of Intelligence</h1>
+      <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">A rigorous, 65-day architectural blueprint for mastering advanced AI systems. Proceed with focus.</p>
+    </div>
+    
+    <div class="col-span-12 md:col-start-2 md:col-span-10 relative">
+      <!-- Central Line -->
+      <div class="absolute left-[15px] md:left-1/2 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-secondary to-transparent md:-translate-x-1/2"></div>
+  `;
 
   SECTIONS.forEach((sec, i) => {
     const done = sec.skills.filter(s => checked[s.id]).length;
@@ -475,27 +577,59 @@ function renderRoadmapView() {
     const pct = Math.round((done/total)*100);
     const isCurrent = sec.id === firstIncomplete;
     const isComplete = done === total;
-    const bgClass = isCurrent ? 'border-l-4 border-l-secondary' : isComplete ? 'opacity-50' : '';
+    
+    const alignmentClass = i % 2 === 0 
+      ? 'md:flex-row' 
+      : 'md:flex-row-reverse'; 
+      
+    const textAlignmentClass = i % 2 === 0
+      ? 'md:text-right md:justify-end'
+      : 'md:text-left md:justify-start';
 
-    html += `<div class="card flex flex-col gap-4 relative overflow-hidden ${bgClass}">
-      <div class="absolute top-4 right-4">
-        <span class="material-symbols-outlined ${isCurrent ? 'text-secondary animate-pulse' : isComplete ? 'text-secondary' : 'text-surface-container-highest'}">${isCurrent ? 'play_circle' : isComplete ? 'check_circle' : 'lock'}</span>
-      </div>
-      <span class="font-label-caps text-label-caps ${isCurrent ? 'text-secondary' : 'text-on-surface-variant'}">${sec.phase || 'MODULE'} ${isCurrent ? '• CURRENT' : ''}</span>
-      <h4 class="font-headline-md text-headline-md ${isComplete ? 'text-on-surface-variant line-through' : 'text-primary'}">${sec.title}</h4>
-      <div class="w-full mt-2">
-        <div class="flex justify-between mb-2">
-          <span class="font-caption text-caption text-on-surface-variant">Module Progress</span>
-          <span class="font-caption text-caption text-on-surface-variant">${pct}%</span>
+    const cardClass = isCurrent 
+      ? 'border-l-4 border-l-secondary bg-white' 
+      : isComplete 
+        ? 'opacity-60 bg-surface-container-low' 
+        : 'bg-white';
+
+    const cardHtml = `
+      <div class="bg-white p-8 border border-outline-variant w-full flex flex-col gap-4 ${cardClass}">
+        <span class="font-label-caps text-label-caps font-bold ${isCurrent ? 'text-secondary' : 'text-on-surface-variant'} tracking-widest uppercase">
+          ${sec.phase || 'MODULE'} ${isCurrent ? '• CURRENT' : ''}
+        </span>
+        <h4 class="font-headline-md text-headline-md font-semibold text-primary tracking-tight ${isComplete ? 'line-through text-on-surface-variant' : ''}">
+          ${sec.title}
+        </h4>
+        <p class="font-body-md text-body-md text-on-surface-variant">
+          ${done}/${total} skills conquered (${pct}%)
+        </p>
+        <div class="w-full mt-2">
+          <div class="w-full h-[2px] progress-bar-bg relative">
+            <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
+          </div>
         </div>
-        <div class="w-full h-[2px] progress-bar-bg relative">
-          <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
-        </div>
       </div>
-    </div>`;
+    `;
+
+    html += `
+      <div class="relative flex flex-col ${alignmentClass} items-start mb-16 group">
+        <!-- Left Side Column (or right side if reversed) -->
+        <div class="md:w-1/2 w-full pl-12 md:pl-0 flex ${i % 2 === 0 ? 'md:pr-16' : 'md:pl-16'}">
+          ${cardHtml}
+        </div>
+        
+        <!-- Node in the middle -->
+        <div class="absolute left-0 md:left-1/2 w-8 h-8 rounded-full bg-surface border-2 ${isCurrent ? 'border-secondary' : isComplete ? 'border-secondary' : 'border-outline-variant'} md:-translate-x-1/2 flex items-center justify-center z-10 transition-colors">
+          <div class="w-2 h-2 rounded-full ${isCurrent || isComplete ? 'bg-secondary' : 'bg-transparent'}"></div>
+        </div>
+        
+        <!-- Empty Space on other side -->
+        <div class="md:w-1/2 hidden md:block"></div>
+      </div>
+    `;
   });
 
-  html += '</div></div>';
+  html += `</div>`;
   main.innerHTML = html;
 }
 
@@ -600,99 +734,239 @@ function renderArchiveView() {
 function renderResourcesView() {
   const main = document.getElementById('main');
   main.innerHTML = `
-    <div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap w-full">
-      <div class="grid grid-cols-12 gap-gutter w-full">
-        <div class="col-span-12 md:col-span-8 flex flex-col justify-center">
-          <h1 class="font-display text-display text-primary mb-6">Digital Library</h1>
-          <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Curated materials for profound focus and technical mastery. A sanctuary of thought distilled into text and code.</p>
+    <!-- Page Header -->
+    <div class="col-span-12 md:col-span-8 flex flex-col justify-center mb-16">
+      <h1 class="font-display text-display text-primary mb-6 leading-tight text-3xl md:text-5xl">Digital Library</h1>
+      <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl leading-relaxed">Curated materials for profound focus and technical mastery. A sanctuary of thought distilled into text and code.</p>
+    </div>
+    <div class="col-span-12 md:col-span-4 flex justify-end items-center mb-16">
+      <img class="w-32 h-auto object-contain grayscale opacity-60 mix-blend-multiply" src="./Gojo.png"/>
+    </div>
+
+    <!-- Section: Essential Reading -->
+    <section class="col-span-12 mb-16">
+      <div class="flex items-center gap-6 mb-12">
+        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Essential Reading</h2>
+        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+        <!-- Card 1 -->
+        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+          <div>
+            <div class="flex justify-between items-start mb-6">
+              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">PAPER</span>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">AI</span>
+            </div>
+            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">Attention Is All You Need</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">The foundational architecture that shifted the paradigm. A deep dive into transformer mechanisms.</p>
+          </div>
+          <a href="https://arxiv.org/abs/1706.03762" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
+            Read Document
+            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+          </a>
         </div>
-        <div class="col-span-12 md:col-span-4 flex justify-end items-center opacity-80">
-          <img class="w-32 h-auto object-contain grayscale opacity-50" src="./Gojo.png" />
+        <!-- Card 2 -->
+        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+          <div>
+            <div class="flex justify-between items-start mb-6">
+              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">BOOK</span>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">MATH</span>
+            </div>
+            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">Deep Learning</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">Goodfellow, Bengio, and Courville's comprehensive text on the mathematical underpinnings of modern AI.</p>
+          </div>
+          <a href="https://www.deeplearningbook.org/" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
+            View Details
+            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+          </a>
+        </div>
+        <!-- Card 3 -->
+        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+          <div>
+            <div class="flex justify-between items-start mb-6">
+              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">ESSAY</span>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">ML</span>
+            </div>
+            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">The Bitter Lesson</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">Rich Sutton's seminal piece on the inevitable triumph of computation over human-engineered heuristics.</p>
+          </div>
+          <a href="http://www.incompleteideas.net/IncIdeas/BitterLesson.html" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
+            Read Document
+            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+          </a>
         </div>
       </div>
-      
-      <section class="w-full">
-        <div class="flex items-center gap-4 mb-12">
-          <h2 class="font-headline-lg text-headline-lg text-primary">Essential Reading</h2>
-          <div class="h-px flex-grow bg-surface-container-high"></div>
+    </section>
+
+    <!-- Section: Technical Documentation -->
+    <section class="col-span-12 mb-16">
+      <div class="flex items-center gap-6 mb-12">
+        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Technical Documentation</h2>
+        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+        <!-- Doc Card 1 -->
+        <div class="card hairline-border p-8 flex items-start gap-6 group hover:bg-surface-container-low transition-colors">
+          <div class="w-14 h-14 flex-shrink-0 bg-white flex items-center justify-center border border-outline-variant shadow-sm">
+            <span class="material-symbols-outlined text-primary text-[28px]">library_books</span>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center gap-2 mb-3">
+              <h3 class="font-headline-md text-headline-md text-primary">PyTorch Internals</h3>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-2 py-0.5 ml-auto">ML</span>
+            </div>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-5 leading-relaxed">Understanding the computational graph and autograd engine.</p>
+            <a href="https://pytorch.org/assets/deep-learning/Deep-Learning-with-PyTorch.pdf" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
+              Access Docs
+              <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">arrow_forward</span>
+            </a>
+          </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-          
-          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-            <div>
-              <div class="flex justify-between items-start mb-6">
-                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">PAPER</span>
-                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">AI</span>
-              </div>
-              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Attention Is All You Need</h3>
-              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">The foundational paper introducing the Transformer architecture, dispensing with recurrence and convolutions entirely.</p>
+        <!-- Doc Card 2 -->
+        <div class="card hairline-border p-8 flex items-start gap-6 group hover:bg-surface-container-low transition-colors">
+          <div class="w-14 h-14 flex-shrink-0 bg-white flex items-center justify-center border border-outline-variant shadow-sm">
+            <span class="material-symbols-outlined text-primary text-[28px]">terminal</span>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center gap-2 mb-3">
+              <h3 class="font-headline-md text-headline-md text-primary">CUDA Programming Guide</h3>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-2 py-0.5 ml-auto">AI</span>
             </div>
-            <a href="https://arxiv.org/abs/1706.03762" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
-              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-5 leading-relaxed">Optimization strategies for GPU parallel processing.</p>
+            <a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
+              Access Docs
+              <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">arrow_forward</span>
             </a>
           </div>
-
-          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-            <div>
-              <div class="flex justify-between items-start mb-6">
-                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">BOOK</span>
-                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">MATH</span>
-              </div>
-              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Mathematics for Machine Learning</h3>
-              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">The necessary mathematical concepts for understanding machine learning, from linear algebra to vector calculus.</p>
-            </div>
-            <a href="https://mml-book.github.io/" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
-              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
-            </a>
-          </div>
-
-          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-            <div>
-              <div class="flex justify-between items-start mb-6">
-                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">COURSE</span>
-                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">DL</span>
-              </div>
-              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Neural Networks: Zero to Hero</h3>
-              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">Andrej Karpathy's masterclass on building neural networks from scratch in code.</p>
-            </div>
-            <a href="https://karpathy.ai/zero-to-hero.html" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
-              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
-            </a>
-          </div>
-
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
+
+    <!-- Section: Code Repositories -->
+    <section class="col-span-12 mb-16">
+      <div class="flex items-center gap-6 mb-12">
+        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Code Repositories</h2>
+        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
+      </div>
+      <div class="grid grid-cols-12 gap-gutter">
+        <!-- Main Repo -->
+        <div class="col-span-12 md:col-span-8 card hairline-border p-10 flex flex-col justify-between h-full group relative overflow-hidden">
+          <div class="relative z-10">
+            <div class="flex justify-between items-start mb-8">
+              <span class="material-symbols-outlined text-primary text-[40px] opacity-80">folder_data</span>
+              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">AI</span>
+            </div>
+            <h3 class="font-headline-md text-headline-md text-primary mb-4 text-3xl tracking-tight">Zen_Architect_Core</h3>
+            <p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-xl leading-relaxed">The main repository containing the distilled architectural patterns for minimal, high-performance neural network implementations.</p>
+            <div class="flex gap-8 mb-10 font-caption text-caption text-on-surface-variant tracking-wider">
+              <div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">star</span> 1.2k</div>
+              <div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">call_split</span> 340</div>
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Python</div>
+            </div>
+          </div>
+          <button class="border border-primary/20 bg-white/50 text-primary px-8 py-4 font-label-caps text-label-caps uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all duration-300 w-fit flex items-center gap-3 shadow-sm hover:shadow-lg relative z-10">
+            Clone Repository
+            <span class="material-symbols-outlined text-[20px]">download</span>
+          </button>
+        </div>
+        <!-- Secondary Repos Stack -->
+        <div class="col-span-12 md:col-span-4 flex flex-col gap-gutter">
+          <div class="card hairline-border p-8 flex-grow flex flex-col justify-center group hover:bg-surface-container-low transition-colors">
+            <div class="flex justify-between items-start mb-5">
+              <h3 class="font-headline-md text-headline-md text-primary text-xl">Utils_Library</h3>
+              <span class="material-symbols-outlined text-on-surface-variant/50 text-[24px] group-hover:text-primary transition-colors">code</span>
+            </div>
+            <p class="font-caption text-[14px] text-on-surface-variant mb-6 leading-relaxed">Helper functions for data processing and tensor manipulation.</p>
+            <a class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors underline underline-offset-4 tracking-widest" href="#">View Source</a>
+          </div>
+          <div class="card hairline-border p-8 flex-grow flex flex-col justify-center group hover:bg-surface-container-low transition-colors">
+            <div class="flex justify-between items-start mb-5">
+              <h3 class="font-headline-md text-headline-md text-primary text-xl">Model_Weights</h3>
+              <span class="material-symbols-outlined text-on-surface-variant/50 text-[24px] group-hover:text-primary transition-colors">weight</span>
+            </div>
+            <p class="font-caption text-[14px] text-on-surface-variant mb-6 leading-relaxed">Pre-trained weights for standard architectural benchmarks.</p>
+            <a class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors underline underline-offset-4 tracking-widest" href="#">View Source</a>
+          </div>
+        </div>
+      </div>
+    </section>
   `;
 }
 
 function renderJournalView() {
   const main = document.getElementById('main');
+  const dayCount = getDayCount();
+
+  if (dayCount === 0) {
+    main.innerHTML = `
+      <div class="col-span-12 flex flex-col items-center justify-center text-center p-12 bg-white border border-outline-variant min-h-[400px]">
+        <span class="material-symbols-outlined text-6xl text-on-surface-variant mb-4">edit_note</span>
+        <h2 class="font-display text-2xl font-light text-primary mb-2">Journal Locked</h2>
+        <p class="font-body-md text-on-surface-variant max-w-md">Your journal will unlock automatically once you check off your first skill in the <strong class="text-primary">Phases</strong> tab and start your 65-day journey.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (journalSelectedDay > dayCount || journalSelectedDay < 1) {
+    journalSelectedDay = dayCount;
+  }
+
+  const currentEntry = journalEntries[journalSelectedDay] || {
+    title: '',
+    mood: 'neutral',
+    hours: '',
+    text: '',
+    breakthroughs: ['', '']
+  };
+
+  if (!currentEntry.breakthroughs) {
+    currentEntry.breakthroughs = ['', ''];
+  }
+
+  activeJournalMood = currentEntry.mood || 'neutral';
+
+  let sidebarDaysHtml = '';
+  for (let d = dayCount; d >= 1; d--) {
+    const isSel = d === journalSelectedDay;
+    const entry = journalEntries[d];
+    const hasLog = entry && (entry.title || entry.text);
+    
+    sidebarDaysHtml += `
+      <div class="p-4 border-b border-outline-variant cursor-pointer transition-colors ${isSel ? 'bg-white border-l-4 border-l-secondary font-medium' : 'hover:bg-surface-container-low'}" onclick="selectJournalDay(${d})">
+        <div class="flex justify-between items-center">
+          <span class="font-body-md text-body-md">Day ${String(d).padStart(2, '0')}</span>
+          ${hasLog ? '<span class="material-symbols-outlined text-secondary text-sm">edit</span>' : ''}
+        </div>
+        <div class="font-caption text-caption text-on-surface-variant">${d === dayCount ? 'Today' : d === dayCount - 1 ? 'Yesterday' : ''}</div>
+      </div>
+    `;
+  }
+
+  const prompts = [
+    "What was your most challenging concept today, and how did you approach deconstructing it?",
+    "How did you apply today's learning to a real-world problem or scenario?",
+    "What is one thing you understand today that you didn't understand yesterday?",
+    "Did you encounter any bugs or errors today? How did you debug them?",
+    "What was the most interesting resource or article you read today?",
+    "How are you feeling about your progress so far? What is keeping you motivated?",
+    "Summarize today's learning in a single sentence."
+  ];
+  const promptText = prompts[journalSelectedDay % prompts.length];
+
   main.innerHTML = `
-    <div class="col-span-1 md:col-span-12 flex flex-col md:flex-row w-full min-h-[calc(100vh-64px-150px)] gap-gutter">
+    <div class="col-span-12 flex flex-col md:flex-row w-full min-h-[calc(100vh-64px-150px)] gap-gutter">
       <!-- Sidebar -->
       <aside class="w-full md:w-64 bg-surface-bright border border-outline-variant flex-shrink-0 flex flex-col h-auto md:h-full overflow-y-auto pt-8">
         <div class="px-6 mb-6">
           <h3 class="font-label-caps text-label-caps text-on-surface-variant mb-2">65-DAY MASTERY</h3>
-          <div class="text-sm font-body-md text-primary font-medium">Day ${getDayCount()} / 65</div>
+          <div class="text-sm font-body-md text-primary font-medium">Day ${dayCount} / 65</div>
           <div class="w-full h-[2px] bg-surface-container mt-2">
-            <div class="h-full bg-secondary" style="width: ${(getDayCount()/65)*100}%;"></div>
+            <div class="h-full bg-secondary" style="width: ${(dayCount/65)*100}%;"></div>
           </div>
         </div>
-        <div class="flex-grow flex flex-col">
-          <div class="p-4 border-b border-outline-variant cursor-pointer bg-white border-l-2 border-l-primary font-medium">
-            <span class="font-body-md text-body-md">Day ${getDayCount()}</span>
-            <div class="font-caption text-caption text-on-surface-variant">Today</div>
-          </div>
-          <div class="p-4 border-b border-outline-variant cursor-pointer hover:bg-surface-container-low transition-colors">
-            <span class="font-body-md text-body-md">Day ${Math.max(0, getDayCount()-1)}</span>
-            <div class="font-caption text-caption text-on-surface-variant">Yesterday</div>
-          </div>
-        </div>
-        <div class="p-6 border-t border-outline-variant mt-auto">
-          <button class="btn-secondary w-full flex items-center justify-center gap-2">
-            <span class="material-symbols-outlined" style="font-size: 18px;">add</span> New Entry
-          </button>
+        <div class="flex-grow flex flex-col overflow-y-auto max-h-[300px] md:max-h-none">
+          ${sidebarDaysHtml}
         </div>
       </aside>
 
@@ -701,19 +975,19 @@ function renderJournalView() {
         <div class="max-w-[800px] w-full mx-auto">
           <!-- Meta Header -->
           <div class="mb-12 border-b border-outline-variant pb-8">
-            <input class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none" placeholder="Entry Title..." type="text" value="Reflections on Structural Integrity"/>
+            <input id="journal-title" class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none focus:ring-0" placeholder="Entry Title..." type="text" value="${currentEntry.title || ''}"/>
             <div class="flex flex-wrap gap-8">
               <div class="flex-1 min-w-[200px]">
                 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">DAILY MOOD</label>
-                <div class="flex gap-4">
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-on-surface-variant" style="font-variation-settings: 'FILL' 1;">sentiment_excited</span>
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-outline-variant">sentiment_neutral</span>
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-outline-variant">sentiment_dissatisfied</span>
+                <div class="flex gap-4" id="mood-selector">
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'excited' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'excited' ? 1 : 0};" onclick="setJournalMood('excited')">sentiment_excited</span>
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'neutral' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'neutral' ? 1 : 0};" onclick="setJournalMood('neutral')">sentiment_neutral</span>
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'sad' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'sad' ? 1 : 0};" onclick="setJournalMood('sad')">sentiment_dissatisfied</span>
                 </div>
               </div>
               <div class="flex-1 min-w-[200px]">
                 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">HOURS LOGGED</label>
-                <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" type="number" value="4.5"/>
+                <input id="journal-hours" class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0" type="number" step="0.1" value="${currentEntry.hours || ''}"/>
               </div>
             </div>
           </div>
@@ -724,40 +998,116 @@ function renderJournalView() {
             <div class="font-label-caps text-label-caps text-secondary mb-2 flex items-center gap-2">
               <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span> DAILY PROMPT
             </div>
-            <p class="font-body-lg text-body-lg text-primary italic">What was your most challenging concept today, and how did you approach deconstructing it?</p>
+            <p class="font-body-lg text-body-lg text-primary italic">${promptText}</p>
           </div>
 
           <!-- Main Text Area -->
           <div class="mb-12">
-            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">TECHNICAL LOG & REFLECTIONS</label>
-            <textarea class="w-full min-h-[400px] outline-none resize-y bg-transparent font-body-md text-primary leading-relaxed" placeholder="Start writing...">Today focused on applying the principles of structural integrity to the core architecture. The primary challenge remains achieving clean modularity without relying on excessive abstraction.
-
-I spent 2 hours refining the grid alignment across the navigation elements. The subtraction of elements is harder than addition. Every line must justify its existence. 
-
-Breakthrough: Using tonal stepping effectively creates necessary depth without violating the flat aesthetic rules.</textarea>
+            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[16px]">code</span> TECHNICAL LOG & REFLECTIONS
+            </label>
+            <textarea id="journal-text" class="w-full min-h-[300px] outline-none resize-y bg-transparent font-mono text-sm leading-relaxed border border-outline-variant p-4 focus:border-primary transition-colors focus:ring-0" placeholder="Start writing...">${currentEntry.text || ''}</textarea>
           </div>
 
           <!-- Key Breakthroughs -->
           <div class="mb-24">
             <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">KEY BREAKTHROUGHS</label>
-            <div class="flex items-center gap-4 mb-4">
-              <span class="material-symbols-outlined text-secondary" style="font-size: 20px;">check_circle</span>
-              <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" type="text" value="Mastered tonal stepping for depth"/>
-            </div>
-            <div class="flex items-center gap-4 mb-4">
-              <span class="material-symbols-outlined text-outline-variant" style="font-size: 20px;">radio_button_unchecked</span>
-              <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" placeholder="Add breakthrough..." type="text"/>
+            <div id="breakthroughs-list" class="flex flex-col gap-2">
+              ${(currentEntry.breakthroughs || []).map((bt, idx) => `
+                <div class="flex items-center gap-4">
+                  <span class="material-symbols-outlined ${bt ? 'text-secondary' : 'text-outline-variant'}" style="font-size: 20px;">
+                    ${bt ? 'check_circle' : 'radio_button_unchecked'}
+                  </span>
+                  <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0 journal-bt-input" type="text" data-index="${idx}" value="${bt || ''}" placeholder="${idx === 0 ? 'e.g. Mastered tonal stepping for depth' : 'Add breakthrough...'}" oninput="updateBtIcons()"/>
+                </div>
+              `).join('')}
             </div>
           </div>
 
-          <div class="flex justify-end pt-8 border-t border-outline-variant">
-            <button class="btn-primary">Save Entry</button>
+          <div class="flex justify-end pt-8 border-t border-outline-variant gap-4">
+            <span id="save-status" class="self-center font-caption text-on-surface-variant italic text-sm"></span>
+            <button class="btn-primary font-label-caps text-label-caps" onclick="saveJournalEntry()">Save Entry</button>
           </div>
         </div>
       </section>
     </div>
   `;
 }
+
+function selectJournalDay(d) {
+  journalSelectedDay = d;
+  renderJournalView();
+}
+
+let activeJournalMood = 'neutral';
+function setJournalMood(mood) {
+  activeJournalMood = mood;
+  const selector = document.getElementById('mood-selector');
+  if (selector) {
+    selector.querySelectorAll('span').forEach((el, idx) => {
+      const moods = ['excited', 'neutral', 'sad'];
+      const m = moods[idx];
+      const isSel = m === mood;
+      el.className = `material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${isSel ? 'text-secondary' : 'text-outline-variant'}`;
+      el.style.fontVariationSettings = `'FILL' ${isSel ? 1 : 0}`;
+    });
+  }
+}
+
+function updateBtIcons() {
+  const list = document.getElementById('breakthroughs-list');
+  if (!list) return;
+  list.querySelectorAll('.flex').forEach(container => {
+    const input = container.querySelector('input');
+    const icon = container.querySelector('span');
+    if (input && icon) {
+      const val = input.value.trim();
+      if (val) {
+        icon.textContent = 'check_circle';
+        icon.className = 'material-symbols-outlined text-secondary';
+      } else {
+        icon.textContent = 'radio_button_unchecked';
+        icon.className = 'material-symbols-outlined text-outline-variant';
+      }
+    }
+  });
+}
+
+function saveJournalEntry() {
+  const title = document.getElementById('journal-title').value.trim();
+  const hours = parseFloat(document.getElementById('journal-hours').value) || 0;
+  const text = document.getElementById('journal-text').value.trim();
+  
+  const breakthroughs = [];
+  document.querySelectorAll('.journal-bt-input').forEach(input => {
+    const val = input.value.trim();
+    if (val) breakthroughs.push(val);
+  });
+  breakthroughs.push('');
+
+  journalEntries[journalSelectedDay] = {
+    title,
+    mood: activeJournalMood,
+    hours,
+    text,
+    breakthroughs
+  };
+
+  saveJournalState();
+  
+  const status = document.getElementById('save-status');
+  if (status) {
+    status.textContent = 'Saved successfully.';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  }
+  
+  renderJournalView();
+}
+
+window.selectJournalDay = selectJournalDay;
+window.setJournalMood = setJournalMood;
+window.updateBtIcons = updateBtIcons;
+window.saveJournalEntry = saveJournalEntry;
 
 function openPanel(panelId, overlayId) {
   document.getElementById(panelId).classList.add('open');
@@ -806,45 +1156,98 @@ function renderSettings() {
   const startDate = getStartDate();
 
   body.innerHTML = `
-    <div class="setting-group">
-      <div class="setting-group-title">Display</div>
-      <div class="setting-item">
-        <div><div class="setting-label">Compact Cards</div><div class="setting-desc">Show smaller skill cards</div></div>
-        <label class="toggle-switch"><input type="checkbox" id="toggle-compact" ${settings.compactCards ? 'checked' : ''} /><span class="toggle-slider"></span></label>
+    <div class="flex flex-col gap-6 font-body-md text-on-surface">
+      <!-- DISPLAY -->
+      <div class="flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase">DISPLAY</h4>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-body-md text-primary font-medium">Compact Cards</div>
+            <div class="font-caption text-on-surface-variant text-sm">Show smaller skill cards</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggle-compact" class="sr-only peer" ${settings.compactCards ? 'checked' : ''}>
+            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+          </label>
+        </div>
       </div>
-    </div>
-    <div class="setting-group">
-      <div class="setting-group-title">Data</div>
-      <div class="setting-item">
-        <div><div class="setting-label">Export Progress</div><div class="setting-desc">Download as JSON file</div></div>
-        <button class="setting-btn" id="btn-export">Export</button>
+
+      <!-- CLOUD SYNC -->
+      <div class="flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase">CLOUD SYNC</h4>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-body-md text-primary font-medium">Enable Cloud Sync</div>
+            <div class="font-caption text-on-surface-variant text-sm">Synchronize progress across devices</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggle-sync" class="sr-only peer" ${syncEnabled ? 'checked' : ''}>
+            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+          </label>
+        </div>
+        <div id="sync-details" class="flex flex-col gap-3 ${syncEnabled ? '' : 'hidden'}">
+          <div class="flex flex-col gap-1">
+            <label class="font-caption text-on-surface-variant">Sync Token</label>
+            <div class="flex gap-2">
+              <input type="text" id="sync-token-input" class="flex-grow font-mono text-xs border border-outline-variant p-2 outline-none focus:border-secondary bg-transparent focus:ring-0" placeholder="Enter sync token..." value="${syncBucket}"/>
+              <button class="px-3 py-1 bg-primary text-white text-xs font-label-caps uppercase hover:opacity-85" id="btn-save-token">Save</button>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="flex-1 py-2 border border-outline text-xs font-label-caps uppercase hover:bg-surface-container-low" id="btn-generate-token">New Token</button>
+            <button class="flex-1 py-2 bg-secondary text-white text-xs font-label-caps uppercase hover:opacity-85" id="btn-sync-now">Sync Now</button>
+          </div>
+          <div id="sync-status" class="font-caption text-on-surface-variant text-xs italic"></div>
+        </div>
       </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Import Progress</div><div class="setting-desc">Restore from JSON file</div></div>
-        <button class="setting-btn" id="btn-import">Import</button>
-        <input type="file" id="import-file" accept=".json" style="display:none;" />
+
+      <!-- DATA -->
+      <div class="flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase">DATA</h4>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-body-md text-primary font-medium">Export Progress</div>
+            <div class="font-caption text-on-surface-variant text-sm">Download as JSON file</div>
+          </div>
+          <button class="px-4 py-2 border border-primary text-primary font-label-caps text-xs uppercase hover:bg-surface-container-low" id="btn-export">Export</button>
+        </div>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-body-md text-primary font-medium">Import Progress</div>
+            <div class="font-caption text-on-surface-variant text-sm">Restore from JSON file</div>
+          </div>
+          <button class="px-4 py-2 border border-primary text-primary font-label-caps text-xs uppercase hover:bg-surface-container-low" id="btn-import">Import</button>
+          <input type="file" id="import-file" accept=".json" class="hidden" />
+        </div>
       </div>
-    </div>
-    <div class="setting-group">
-      <div class="setting-group-title">Info</div>
-      <div class="setting-item">
-        <div><div class="setting-label">Skills Conquered</div></div>
-        <span style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:13px;">${done}</span>
+
+      <!-- INFO -->
+      <div class="flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase">INFO</h4>
+        <div class="flex items-center justify-between">
+          <div class="font-body-md text-primary font-medium">Skills Conquered</div>
+          <span class="font-body-md font-mono text-on-surface-variant">${done}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="font-body-md text-primary font-medium">Journey Started</div>
+          <span class="font-body-md font-mono text-on-surface-variant">${startDate ? startDate.toLocaleDateString() : 'Not yet'}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="font-body-md text-primary font-medium">Days Elapsed</div>
+          <span class="font-body-md font-mono text-on-surface-variant">${getDayCount()}</span>
+        </div>
       </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Journey Started</div></div>
-        <span style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:13px;">${startDate ? startDate.toLocaleDateString() : 'Not yet'}</span>
-      </div>
-      <div class="setting-item">
-        <div><div class="setting-label">Days Elapsed</div></div>
-        <span style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:13px;">${getDayCount()}</span>
-      </div>
-    </div>
-    <div class="setting-group">
-      <div class="setting-group-title">Danger Zone</div>
-      <div class="setting-item">
-        <div><div class="setting-label">Reset All Progress</div><div class="setting-desc">Clear all checked skills and day counter</div></div>
-        <button class="setting-btn danger" id="btn-reset">Reset</button>
+
+      <!-- DANGER ZONE -->
+      <div class="flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase text-error">DANGER ZONE</h4>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-body-md text-primary font-medium">Reset All Progress</div>
+            <div class="font-caption text-on-surface-variant text-sm">Clear all checked skills and day counter</div>
+          </div>
+          <button class="px-4 py-2 bg-error text-on-error font-label-caps text-xs uppercase hover:opacity-90" id="btn-reset">Reset</button>
+        </div>
       </div>
     </div>`;
 
@@ -853,6 +1256,38 @@ function renderSettings() {
     settings.compactCards = this.checked;
     saveSettings();
     if (currentView === 'phases') renderView();
+  });
+
+  const toggleSync = document.getElementById('toggle-sync');
+  const syncDetails = document.getElementById('sync-details');
+  toggleSync.addEventListener('change', function() {
+    syncEnabled = this.checked;
+    localStorage.setItem(SYNC_ENABLED_KEY, syncEnabled);
+    syncDetails.classList.toggle('hidden', !syncEnabled);
+    if (syncEnabled && !syncBucket) {
+      generateSyncToken();
+    }
+  });
+
+  document.getElementById('btn-save-token').addEventListener('click', function() {
+    const val = document.getElementById('sync-token-input').value.trim();
+    if (val) {
+      syncBucket = val;
+      localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
+      showSyncStatus('Token saved. Fetching data...');
+      fetchFromCloud();
+    }
+  });
+
+  document.getElementById('btn-generate-token').addEventListener('click', function() {
+    if (confirm('Generate a new sync token? If you already have data on another device, enter that token instead.')) {
+      generateSyncToken();
+    }
+  });
+
+  document.getElementById('btn-sync-now').addEventListener('click', function() {
+    showSyncStatus('Syncing...');
+    pushToCloud().then(() => fetchFromCloud());
   });
 
   document.getElementById('btn-export').addEventListener('click', function() {
@@ -1012,4 +1447,7 @@ document.getElementById('settings-overlay').addEventListener('click', () => clos
 
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
+if (syncEnabled) {
+  fetchFromCloud();
+}
 renderView();
