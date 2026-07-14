@@ -207,14 +207,34 @@ function saveJournalState() {
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 
 // ─── Cloud Sync ────────────────────────────────────────────────
-function generateSyncToken() {
-  const token = 'zm_sync_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  syncBucket = token;
-  localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
-  const input = document.getElementById('sync-token-input');
-  if (input) input.value = token;
-  showSyncStatus('New token generated. Uploading data...');
-  pushToCloud();
+async function generateSyncToken() {
+  showSyncStatus('Generating cloud sync session...');
+  try {
+    const email = `zm_sync_${Math.random().toString(36).substring(2, 10)}@example.com`;
+    const res = await fetch('https://kvdb.io/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `email=${encodeURIComponent(email)}`
+    });
+    if (res.ok) {
+      const bucketId = (await res.text()).trim();
+      if (bucketId) {
+        syncBucket = bucketId;
+        localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
+        const input = document.getElementById('sync-token-input');
+        if (input) input.value = syncBucket;
+        showSyncStatus('Sync token generated. Uploading data...');
+        await pushToCloud();
+        startBackgroundSync();
+      } else {
+        showSyncStatus('Failed to generate token (empty response).');
+      }
+    } else {
+      showSyncStatus('Failed to generate token (server error).');
+    }
+  } catch (err) {
+    showSyncStatus('Sync generation error: ' + err.message);
+  }
 }
 
 function showSyncStatus(msg) {
@@ -233,6 +253,9 @@ async function pushToCloud() {
   try {
     const res = await fetch(`https://kvdb.io/${syncBucket}/data`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     });
     if (res.ok) {
@@ -751,167 +774,287 @@ function renderArchiveView() {
   main.innerHTML = html;
 }
 
+const FLASHCARDS = [
+  {
+    id: "fc_01",
+    category: "Math / Stats",
+    question: "What is the Central Limit Theorem?",
+    answer: "The Central Limit Theorem states that the distribution of sample means approximates a normal distribution as the sample size becomes large (typically n >= 30), regardless of the population's distribution shape."
+  },
+  {
+    id: "fc_02",
+    category: "Deep Learning",
+    question: "Why is the Softmax function used in multi-class classification?",
+    answer: "Softmax normalizes raw model outputs (logits) into a probability distribution over classes, ensuring each value is between 0 and 1, and the sum of all values is exactly 1."
+  },
+  {
+    id: "fc_03",
+    category: "SQL",
+    question: "What is the difference between WHERE and HAVING in SQL?",
+    answer: "WHERE filters rows before aggregations are computed. HAVING filters group results after the GROUP BY clause has been applied."
+  },
+  {
+    id: "fc_04",
+    category: "Python / NumPy",
+    question: "Explain NumPy Broadcasting.",
+    answer: "Broadcasting allows NumPy to perform arithmetic operations on arrays of different shapes by conceptually expanding the smaller array to match the shape of the larger array."
+  },
+  {
+    id: "fc_05",
+    category: "Deep Learning",
+    question: "What is the purpose of Layer Normalization in Transformers?",
+    answer: "Layer Normalization normalizes the inputs across the features of a single training example, stabilizing network training and reducing dependencies on batch sizes (crucial for NLP tasks)."
+  },
+  {
+    id: "fc_06",
+    category: "Math / Stats",
+    question: "What is the difference between L1 and L2 regularization?",
+    answer: "L1 regularization (Lasso) adds the absolute values of coefficients to the loss, driving some weights to exactly 0 (sparsity/feature selection). L2 regularization (Ridge) adds the squared values, penalizing large weights."
+  }
+];
+
+let activeResourceTab = 'flashcards'; // 'flashcards' or 'neuron'
+let currentFlashcardIndex = 0;
+let flashcardFlipped = false;
+let masteredCards = {};
+
+try {
+  const mc = localStorage.getItem('lockin_mastered_cards');
+  if (mc) masteredCards = JSON.parse(mc);
+} catch (e) { masteredCards = {}; }
+
 function renderResourcesView() {
   const main = document.getElementById('main');
-  main.innerHTML = `
-    <!-- Page Header -->
-    <div class="col-span-12 md:col-span-8 flex flex-col justify-center mb-16">
-      <h1 class="font-display text-display text-primary mb-6 leading-tight text-3xl md:text-5xl">Digital Library</h1>
-      <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl leading-relaxed">Curated materials for profound focus and technical mastery. A sanctuary of thought distilled into text and code.</p>
-    </div>
-    <div class="col-span-12 md:col-span-4 flex justify-end items-center mb-16">
-      <img class="w-32 h-auto object-contain grayscale opacity-60 mix-blend-multiply" src="./Gojo.png"/>
-    </div>
+  
+  const tabClass = (tab) => activeResourceTab === tab 
+    ? 'border-b-2 border-secondary text-primary font-medium' 
+    : 'text-on-surface-variant hover:text-primary';
 
-    <!-- Section: Essential Reading -->
-    <section class="col-span-12 mb-16">
-      <div class="flex items-center gap-6 mb-12">
-        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Essential Reading</h2>
-        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-        <!-- Card 1 -->
-        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-          <div>
-            <div class="flex justify-between items-start mb-6">
-              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">PAPER</span>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">AI</span>
-            </div>
-            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">Attention Is All You Need</h3>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">The foundational architecture that shifted the paradigm. A deep dive into transformer mechanisms.</p>
-          </div>
-          <a href="https://arxiv.org/abs/1706.03762" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
-            Read Document
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </a>
-        </div>
-        <!-- Card 2 -->
-        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-          <div>
-            <div class="flex justify-between items-start mb-6">
-              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">BOOK</span>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">MATH</span>
-            </div>
-            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">Deep Learning</h3>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">Goodfellow, Bengio, and Courville's comprehensive text on the mathematical underpinnings of modern AI.</p>
-          </div>
-          <a href="https://www.deeplearningbook.org/" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
-            View Details
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </a>
-        </div>
-        <!-- Card 3 -->
-        <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
-          <div>
-            <div class="flex justify-between items-start mb-6">
-              <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em]">ESSAY</span>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">ML</span>
-            </div>
-            <h3 class="font-headline-md text-headline-md text-primary mb-4 leading-snug">The Bitter Lesson</h3>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-6 line-clamp-3 leading-relaxed">Rich Sutton's seminal piece on the inevitable triumph of computation over human-engineered heuristics.</p>
-          </div>
-          <a href="http://www.incompleteideas.net/IncIdeas/BitterLesson.html" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit mt-4 font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
-            Read Document
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </a>
-        </div>
-      </div>
-    </section>
+  let subViewHtml = '';
+  
+  if (activeResourceTab === 'flashcards') {
+    const card = FLASHCARDS[currentFlashcardIndex];
+    const total = FLASHCARDS.length;
+    const masteredCount = Object.keys(masteredCards).length;
+    const isMastered = masteredCards[card.id];
 
-    <!-- Section: Technical Documentation -->
-    <section class="col-span-12 mb-16">
-      <div class="flex items-center gap-6 mb-12">
-        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Technical Documentation</h2>
-        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-        <!-- Doc Card 1 -->
-        <div class="card hairline-border p-8 flex items-start gap-6 group hover:bg-surface-container-low transition-colors">
-          <div class="w-14 h-14 flex-shrink-0 bg-white flex items-center justify-center border border-outline-variant shadow-sm">
-            <span class="material-symbols-outlined text-primary text-[28px]">library_books</span>
-          </div>
-          <div class="flex-grow">
-            <div class="flex items-center gap-2 mb-3">
-              <h3 class="font-headline-md text-headline-md text-primary">PyTorch Internals</h3>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-2 py-0.5 ml-auto">ML</span>
-            </div>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-5 leading-relaxed">Understanding the computational graph and autograd engine.</p>
-            <a href="https://pytorch.org/assets/deep-learning/Deep-Learning-with-PyTorch.pdf" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
-              Access Docs
-              <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">arrow_forward</span>
-            </a>
-          </div>
+    subViewHtml = `
+      <div class="col-span-12 flex flex-col items-center gap-8 max-w-[600px] mx-auto w-full">
+        <!-- Stats -->
+        <div class="w-full flex justify-between items-center text-sm font-body-md text-on-surface-variant">
+          <span>Card ${currentFlashcardIndex + 1} of ${total}</span>
+          <span>Mastered: ${masteredCount} / ${total}</span>
         </div>
-        <!-- Doc Card 2 -->
-        <div class="card hairline-border p-8 flex items-start gap-6 group hover:bg-surface-container-low transition-colors">
-          <div class="w-14 h-14 flex-shrink-0 bg-white flex items-center justify-center border border-outline-variant shadow-sm">
-            <span class="material-symbols-outlined text-primary text-[28px]">terminal</span>
-          </div>
-          <div class="flex-grow">
-            <div class="flex items-center gap-2 mb-3">
-              <h3 class="font-headline-md text-headline-md text-primary">CUDA Programming Guide</h3>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-2 py-0.5 ml-auto">AI</span>
-            </div>
-            <p class="font-body-md text-body-md text-on-surface-variant mb-5 leading-relaxed">Optimization strategies for GPU parallel processing.</p>
-            <a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html" target="_blank" class="flex items-center gap-2 group-hover:text-secondary transition-colors cursor-pointer w-fit font-label-caps text-label-caps uppercase tracking-widest text-primary hover:text-secondary">
-              Access Docs
-              <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">arrow_forward</span>
-            </a>
-          </div>
+        
+        <!-- Progress Bar -->
+        <div class="w-full h-[2px] bg-surface-container relative mb-4">
+          <div class="absolute top-0 left-0 h-full bg-secondary transition-all duration-300" style="width: ${(masteredCount/total)*100}%;"></div>
         </div>
-      </div>
-    </section>
 
-    <!-- Section: Code Repositories -->
-    <section class="col-span-12 mb-16">
-      <div class="flex items-center gap-6 mb-12">
-        <h2 class="font-headline-lg text-headline-lg text-primary tracking-tight">Code Repositories</h2>
-        <div class="h-px flex-grow bg-gradient-to-r from-outline-variant/50 to-transparent"></div>
-      </div>
-      <div class="grid grid-cols-12 gap-gutter">
-        <!-- Main Repo -->
-        <div class="col-span-12 md:col-span-8 card hairline-border p-10 flex flex-col justify-between h-full group relative overflow-hidden">
-          <div class="relative z-10">
-            <div class="flex justify-between items-start mb-8">
-              <span class="material-symbols-outlined text-primary text-[40px] opacity-80">folder_data</span>
-              <span class="font-label-caps text-label-caps text-secondary bg-secondary/15 px-3 py-1">AI</span>
-            </div>
-            <h3 class="font-headline-md text-headline-md text-primary mb-4 text-3xl tracking-tight">Zen_Architect_Core</h3>
-            <p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-xl leading-relaxed">The main repository containing the distilled architectural patterns for minimal, high-performance neural network implementations.</p>
-            <div class="flex gap-8 mb-10 font-caption text-caption text-on-surface-variant tracking-wider">
-              <div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">star</span> 1.2k</div>
-              <div class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">call_split</span> 340</div>
-              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Python</div>
-            </div>
+        <!-- Flashcard container with flip style -->
+        <div id="flashcard-box" class="w-full min-h-[300px] border border-outline-variant bg-white p-8 flex flex-col justify-between cursor-pointer card-hover relative select-none" onclick="flipFlashcard()">
+          <div class="absolute top-4 right-4 font-label-caps text-label-caps text-secondary uppercase tracking-widest text-xs">
+            ${card.category}
           </div>
-          <button class="border border-primary/20 bg-white/50 text-primary px-8 py-4 font-label-caps text-label-caps uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all duration-300 w-fit flex items-center gap-3 shadow-sm hover:shadow-lg relative z-10">
-            Clone Repository
-            <span class="material-symbols-outlined text-[20px]">download</span>
+          
+          <div class="flex-grow flex items-center justify-center text-center p-4">
+            <h3 class="font-headline-md text-headline-md text-primary leading-relaxed text-lg md:text-xl">
+              ${flashcardFlipped ? card.answer : card.question}
+            </h3>
+          </div>
+          
+          <div class="text-center font-caption text-caption text-on-surface-variant uppercase tracking-widest border-t border-outline-variant/30 pt-4 text-xs">
+            ${flashcardFlipped ? 'Click to show question' : 'Click to reveal answer'}
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex gap-4 w-full">
+          <button class="flex-1 py-3 border border-outline font-label-caps text-label-caps uppercase hover:bg-surface-container-low text-xs" onclick="prevFlashcard()">Previous</button>
+          <button class="flex-1 py-3 bg-primary text-white font-label-caps text-label-caps uppercase hover:opacity-85 text-xs" onclick="toggleMasterCard('${card.id}')">
+            ${isMastered ? 'Remove Mastered' : 'Mark Mastered'}
           </button>
+          <button class="flex-1 py-3 border border-outline font-label-caps text-label-caps uppercase hover:bg-surface-container-low text-xs" onclick="nextFlashcard()">Next</button>
         </div>
-        <!-- Secondary Repos Stack -->
-        <div class="col-span-12 md:col-span-4 flex flex-col gap-gutter">
-          <div class="card hairline-border p-8 flex-grow flex flex-col justify-center group hover:bg-surface-container-low transition-colors">
-            <div class="flex justify-between items-start mb-5">
-              <h3 class="font-headline-md text-headline-md text-primary text-xl">Utils_Library</h3>
-              <span class="material-symbols-outlined text-on-surface-variant/50 text-[24px] group-hover:text-primary transition-colors">code</span>
+      </div>
+    `;
+  } else {
+    // Neuron Playground
+    const x1 = parseFloat(document.getElementById('neuron-x1')?.value ?? 1.0);
+    const x2 = parseFloat(document.getElementById('neuron-x2')?.value ?? -0.5);
+    const w1 = parseFloat(document.getElementById('neuron-w1')?.value ?? 0.8);
+    const w2 = parseFloat(document.getElementById('neuron-w2')?.value ?? 1.2);
+    const b = parseFloat(document.getElementById('neuron-b')?.value ?? -0.2);
+    const act = document.getElementById('neuron-act')?.value ?? 'relu';
+
+    // Calculate weighted sum
+    const z = (x1 * w1) + (x2 * w2) + b;
+    let y = 0;
+    if (act === 'linear') y = z;
+    else if (act === 'relu') y = Math.max(0, z);
+    else if (act === 'sigmoid') y = 1 / (1 + Math.exp(-z));
+    else if (act === 'tanh') y = Math.tanh(z);
+
+    subViewHtml = `
+      <div class="col-span-12 lg:col-span-6 flex flex-col gap-6">
+        <h3 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-2 text-lg">Neuron Parameters</h3>
+        
+        <div class="flex flex-col gap-4">
+          <div>
+            <div class="flex justify-between font-caption text-on-surface-variant mb-1 text-xs">
+              <span>Input 1 (x₁)</span>
+              <span class="font-mono">${x1.toFixed(1)}</span>
             </div>
-            <p class="font-caption text-[14px] text-on-surface-variant mb-6 leading-relaxed">Helper functions for data processing and tensor manipulation.</p>
-            <a class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors underline underline-offset-4 tracking-widest" href="#">View Source</a>
+            <input type="range" id="neuron-x1" min="-2" max="2" step="0.1" value="${x1}" class="w-full accent-secondary" oninput="updateNeuronSim()"/>
           </div>
-          <div class="card hairline-border p-8 flex-grow flex flex-col justify-center group hover:bg-surface-container-low transition-colors">
-            <div class="flex justify-between items-start mb-5">
-              <h3 class="font-headline-md text-headline-md text-primary text-xl">Model_Weights</h3>
-              <span class="material-symbols-outlined text-on-surface-variant/50 text-[24px] group-hover:text-primary transition-colors">weight</span>
+          <div>
+            <div class="flex justify-between font-caption text-on-surface-variant mb-1 text-xs">
+              <span>Input 2 (x₂)</span>
+              <span class="font-mono">${x2.toFixed(1)}</span>
             </div>
-            <p class="font-caption text-[14px] text-on-surface-variant mb-6 leading-relaxed">Pre-trained weights for standard architectural benchmarks.</p>
-            <a class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors underline underline-offset-4 tracking-widest" href="#">View Source</a>
+            <input type="range" id="neuron-x2" min="-2" max="2" step="0.1" value="${x2}" class="w-full accent-secondary" oninput="updateNeuronSim()"/>
+          </div>
+          <div>
+            <div class="flex justify-between font-caption text-on-surface-variant mb-1 text-xs">
+              <span>Weight 1 (w₁)</span>
+              <span class="font-mono">${w1.toFixed(1)}</span>
+            </div>
+            <input type="range" id="neuron-w1" min="-2" max="2" step="0.1" value="${w1}" class="w-full accent-secondary" oninput="updateNeuronSim()"/>
+          </div>
+          <div>
+            <div class="flex justify-between font-caption text-on-surface-variant mb-1 text-xs">
+              <span>Weight 2 (w₂)</span>
+              <span class="font-mono">${w2.toFixed(1)}</span>
+            </div>
+            <input type="range" id="neuron-w2" min="-2" max="2" step="0.1" value="${w2}" class="w-full accent-secondary" oninput="updateNeuronSim()"/>
+          </div>
+          <div>
+            <div class="flex justify-between font-caption text-on-surface-variant mb-1 text-xs">
+              <span>Bias (b)</span>
+              <span class="font-mono">${b.toFixed(1)}</span>
+            </div>
+            <input type="range" id="neuron-b" min="-2" max="2" step="0.1" value="${b}" class="w-full accent-secondary" oninput="updateNeuronSim()"/>
+          </div>
+          <div>
+            <label class="font-caption text-on-surface-variant block mb-1 text-xs">Activation Function</label>
+            <select id="neuron-act" class="w-full border border-outline-variant p-2 outline-none bg-white font-body-md text-primary focus:border-secondary focus:ring-0 rounded-none text-sm" onchange="updateNeuronSim()">
+              <option value="linear" ${act === 'linear' ? 'selected' : ''}>Linear</option>
+              <option value="relu" ${act === 'relu' ? 'selected' : ''}>ReLU (Rectified Linear)</option>
+              <option value="sigmoid" ${act === 'sigmoid' ? 'selected' : ''}>Sigmoid</option>
+              <option value="tanh" ${act === 'tanh' ? 'selected' : ''}>Tanh</option>
+            </select>
           </div>
         </div>
       </div>
-    </section>
+
+      <div class="col-span-12 lg:col-span-6 flex flex-col gap-6 bg-surface-bright border border-outline-variant p-6 md:p-8">
+        <h3 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-2 text-lg">Mathematical Outputs</h3>
+        
+        <div class="flex flex-col gap-6 font-mono text-xs">
+          <div>
+            <div class="font-label-caps text-label-caps text-on-surface-variant mb-2 text-xs">WEIGHTED SUM (z)</div>
+            <div class="p-3 bg-white border border-outline-variant">
+              <div>z = (w₁ · x₁) + (w₂ · x₂) + b</div>
+              <div class="text-secondary mt-1">z = (${w1.toFixed(1)} · ${x1.toFixed(1)}) + (${w2.toFixed(1)} · ${x2.toFixed(1)}) + (${b.toFixed(1)})</div>
+              <div class="font-bold text-primary mt-1">z = ${z.toFixed(4)}</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="font-label-caps text-label-caps text-on-surface-variant mb-2 text-xs">ACTIVATION OUT (y)</div>
+            <div class="p-3 bg-white border border-outline-variant">
+              <div>y = f(z)</div>
+              <div class="text-secondary mt-1">y = ${act.toUpperCase()}(${z.toFixed(4)})</div>
+              <div class="font-bold text-primary mt-1 text-sm">y = ${y.toFixed(4)}</div>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center h-24 border-t border-outline-variant/30 pt-6 mt-4">
+            <div class="flex flex-col text-[10px] text-center gap-1">
+              <span class="p-1 bg-white border border-outline-variant">x₁: ${x1.toFixed(1)}</span>
+              <span class="p-1 bg-white border border-outline-variant">x₂: ${x2.toFixed(1)}</span>
+            </div>
+            
+            <div class="w-8 h-1px bg-outline-variant relative">
+              <div class="absolute -top-3 left-0 text-[8px] text-secondary">w₁</div>
+            </div>
+            
+            <div class="w-12 h-12 rounded-full border border-primary flex items-center justify-center bg-white font-bold text-[10px] flex-col">
+              <span>Σ</span>
+              <span class="text-[8px] text-secondary">${z.toFixed(1)}</span>
+            </div>
+            
+            <div class="w-8 h-1px bg-outline-variant relative">
+              <div class="absolute -top-3 left-0 text-[8px] text-secondary">f</div>
+            </div>
+            
+            <div class="flex flex-col text-[10px] text-center">
+              <span class="p-1.5 bg-secondary text-white font-bold">y: ${y.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  main.innerHTML = `
+    <!-- Tab Controls -->
+    <div class="col-span-12 flex justify-center border-b border-outline-variant mb-8 md:mb-12">
+      <div class="flex gap-4 md:gap-8">
+        <button class="py-3 px-2 font-label-caps text-label-caps uppercase tracking-wider text-xs md:text-sm ${tabClass('flashcards')}" onclick="switchResourceTab('flashcards')">AI Quiz & Flashcards</button>
+        <button class="py-3 px-2 font-label-caps text-label-caps uppercase tracking-wider text-xs md:text-sm ${tabClass('neuron')}" onclick="switchResourceTab('neuron')">Neuron Playground</button>
+      </div>
+    </div>
+
+    <!-- Active view contents -->
+    ${subViewHtml}
   `;
 }
+
+function switchResourceTab(tab) {
+  activeResourceTab = tab;
+  renderResourcesView();
+}
+
+function flipFlashcard() {
+  flashcardFlipped = !flashcardFlipped;
+  renderResourcesView();
+}
+
+function prevFlashcard() {
+  flashcardFlipped = false;
+  currentFlashcardIndex = (currentFlashcardIndex - 1 + FLASHCARDS.length) % FLASHCARDS.length;
+  renderResourcesView();
+}
+
+function nextFlashcard() {
+  flashcardFlipped = false;
+  currentFlashcardIndex = (currentFlashcardIndex + 1) % FLASHCARDS.length;
+  renderResourcesView();
+}
+
+function toggleMasterCard(id) {
+  if (masteredCards[id]) {
+    delete masteredCards[id];
+  } else {
+    masteredCards[id] = true;
+  }
+  try {
+    localStorage.setItem('lockin_mastered_cards', JSON.stringify(masteredCards));
+  } catch(e) {}
+  renderResourcesView();
+}
+
+function updateNeuronSim() {
+  renderResourcesView();
+}
+
+window.switchResourceTab = switchResourceTab;
+window.flipFlashcard = flipFlashcard;
+window.prevFlashcard = prevFlashcard;
+window.nextFlashcard = nextFlashcard;
+window.toggleMasterCard = toggleMasterCard;
+window.updateNeuronSim = updateNeuronSim;
 
 function renderJournalView() {
   const main = document.getElementById('main');
