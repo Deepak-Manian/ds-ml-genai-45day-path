@@ -22,6 +22,7 @@ const RANKS = [
 ];
 
 function getRank(pct) {
+  if (pct === 0) return RANKS[0];
   let rank = RANKS[0];
   for (const r of RANKS) { if (pct >= r.min) rank = r; }
   return rank;
@@ -44,6 +45,11 @@ function setStartDate() {
 function getDayCount() {
   const start = getStartDate();
   if (!start) return 0;
+  
+  // Do not count days if they have not checked any skills
+  const done = Object.values(checked).filter(v => v).length;
+  if (done === 0) return 0;
+
   return Math.max(1, Math.ceil((new Date() - start) / (1000 * 60 * 60 * 24)));
 }
 function updateDayBadge() {
@@ -319,127 +325,111 @@ function renderSection(sec, isExpanded) {
   const total = sec.skills.length;
   const pct = Math.round((done/total)*100);
   const isComplete = done === total;
-  const element = sec.element || 'void';
-  const pc = getPhaseColor(element);
   const sectionIcon = SECTION_ICONS[sec.id] || 'school';
-  const skillIcons = SKILL_ICONS_BY_PHASE[pc.phase] || SKILL_ICONS_BY_PHASE.blue;
 
   const phaseGroup = document.createElement('div');
-  phaseGroup.className = 'phase-group' + (isComplete ? ' completed' : '');
-  phaseGroup.dataset.sectionId = sec.id;
-  phaseGroup.dataset.element = element;
+  phaseGroup.className = 'flex flex-col gap-4';
 
-  const cardsHTML = visSkills.map(function(skill, idx) {
+  const cardsHTML = visSkills.map(function(skill) {
     const isDone = !!checked[skill.id];
-    const tagLabel = skill.tag==='hot' ? '🔥 Hot' : skill.tag;
-    const cardIcon = skillIcons[idx % skillIcons.length];
+    const tagLabel = skill.tag;
     const resHTML = skill.resources.map(r =>
-      `<a class="resource-link" href="${r.url}" target="_blank" rel="noopener noreferrer">
-        <div class="res-icon">${r.icon}</div>
-        <div class="res-info"><div class="res-name">${r.name}</div><div class="res-platform">${r.platform}</div></div>
-        <span class="res-arrow">↗</span></a>`
+      `<a href="${r.url}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between p-3 border border-outline-variant hover:bg-surface-container-low transition-colors group text-on-surface-variant hover:text-primary">
+        <div class="flex items-center gap-3"><span class="material-symbols-outlined text-[18px]">${r.icon}</span><span class="font-body-md text-sm">${r.name} (${r.platform})</span></div>
+        <span class="material-symbols-outlined text-[16px] text-outline-variant group-hover:text-primary transition-colors">north_east</span>
+      </a>`
     ).join('');
-    const statusIcon = isDone
-      ? `<span class="material-symbols-outlined skill-check-icon" style="color:${pc.color};font-variation-settings:'FILL' 1;">check_circle</span>`
-      : `<span class="material-symbols-outlined skill-unchecked-icon">radio_button_unchecked</span>`;
-    const isCompactClass = settings.compactCards ? ' compact' : '';
-
-    return `<div class="skill-card glass-card phase-${pc.phase} ${isDone?'is-done':''}${isCompactClass}" data-skill-id="${skill.id}" data-element="${element}">
-      <div class="accent-bar" style="background:${pc.color};"></div>
-      <div class="skill-card-header" onclick="toggleSkill('${skill.id}')">
-        <span class="material-symbols-outlined skill-card-icon phase-${pc.phase}-icon">${cardIcon}</span>
-        <div class="skill-status">${statusIcon}</div>
+    
+    const statusIcon = isDone ? 'check_box' : 'check_box_outline_blank';
+    const isCompactClass = settings.compactCards ? ' p-4' : ' p-8';
+    const activeBorderClass = isDone ? '' : 'border-l-4 border-l-secondary';
+    
+    return `<div class="card card-hover flex flex-col gap-4 relative overflow-hidden ${isDone?'opacity-60':''} ${activeBorderClass} ${isCompactClass} skill-card" data-skill-id="${skill.id}">
+      <div class="absolute top-4 right-4 skill-status" onclick="toggleSkill('${skill.id}')">
+        <span class="material-symbols-outlined cursor-pointer hover:text-secondary ${isDone?'text-secondary':'text-outline-variant'}" style="font-variation-settings: 'FILL' ${isDone?1:0};">${statusIcon}</span>
       </div>
-      <div onclick="toggleSkill('${skill.id}')">
-        <div class="skill-card-name">${skill.name.split('—')[0].trim()}</div>
-        <div class="skill-card-desc">${skill.desc}</div>
+      <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">${tagLabel}</span>
+      <h4 class="font-headline-md text-headline-md text-primary cursor-pointer pr-8 skill-card-name ${isDone?'line-through text-on-surface-variant':''}" onclick="toggleSkill('${skill.id}')">${skill.name.split('—')[0].trim()}</h4>
+      ${!settings.compactCards ? `<p class="font-body-md text-body-md text-on-surface-variant cursor-pointer" onclick="toggleSkill('${skill.id}')">${skill.desc}</p>` : ''}
+      <div class="flex gap-4 mt-2">
+        <button class="font-body-md text-sm text-secondary hover:underline flex items-center gap-1 font-bold" onclick="event.stopPropagation();toggleResources('${skill.id}',this)">
+          <span class="material-symbols-outlined text-[16px]">menu_book</span> Resources
+        </button>
       </div>
-      <div class="skill-card-bottom">
-        <span class="tag-scroll tag-${skill.tag}">${tagLabel}</span>
-        <button class="learn-btn" onclick="event.stopPropagation();toggleResources('${skill.id}',this)">▸ Learn</button>
-      </div>
-      <div class="resource-dropdown" id="res-${skill.id}">
-        <div class="resource-label">Free Learning Resources</div>
+      <div class="resource-dropdown hidden flex-col gap-2 mt-4 pt-4 border-t border-outline-variant" id="res-${skill.id}">
+        <div class="font-label-caps text-label-caps text-on-surface-variant mb-2">FREE LEARNING RESOURCES</div>
         ${resHTML}
       </div>
     </div>`;
   }).join('');
 
-  const collapsedClass = isExpanded ? '' : ' collapsed';
-  const chevCollapsed = isExpanded ? '' : ' collapsed';
-  const progressHTML = isComplete
-    ? `<span class="phase-complete-badge" id="phase-badge-${sec.id}">✓ Complete</span>`
-    : `<span class="phase-count" id="phase-count-${sec.id}">${done}/${total}</span>
-       <div class="phase-progress-bar"><div class="phase-progress-fill" id="phase-bar-${sec.id}" style="width:${pct}%;background:${pc.color};"></div></div>
-       <span class="phase-complete-badge" id="phase-badge-${sec.id}" style="display:none;">✓ Complete</span>`;
+  const collapsedClass = isExpanded ? 'grid' : 'hidden';
+  const chevCollapsed = isExpanded ? 'rotate-180' : '';
 
   phaseGroup.innerHTML = `
-    <div class="phase-header" onclick="toggleSection('${sec.id}')">
-      <div class="phase-icon-wrap" style="border:1px solid ${pc.color};">
-        <span class="material-symbols-outlined" style="color:${pc.color};">${sectionIcon}</span>
+    <div class="flex items-center justify-between cursor-pointer border-b border-outline-variant pb-2 mt-8" onclick="toggleSection('${sec.id}')">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-primary">${sectionIcon}</span>
+        <h3 class="font-headline-md text-headline-md text-primary">${sec.title}</h3>
       </div>
-      <div style="flex:1;min-width:0;">
-        <div class="phase-label" style="color:${pc.color};">${sec.phase || 'Phase'}</div>
-        <h2 class="phase-title">${sec.title}</h2>
-      </div>
-      <div class="phase-header-right">
-        ${progressHTML}
-        <span class="phase-chevron${chevCollapsed}" id="chev-${sec.id}">
-          <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>
-        </span>
+      <div class="flex items-center gap-4">
+        <span class="font-caption text-caption text-on-surface-variant" id="phase-count-${sec.id}">${done}/${total} (${pct}%)</span>
+        <span class="material-symbols-outlined text-outline-variant transition-transform duration-300 ${chevCollapsed}" id="chev-${sec.id}">expand_more</span>
       </div>
     </div>
-    <div class="skills-grid${collapsedClass}" id="grid-${sec.id}">${cardsHTML}</div>`;
+    <div class="w-full h-[2px] progress-bar-bg relative -top-4">
+      <div class="absolute top-0 left-0 h-full progress-bar-fill" id="phase-bar-${sec.id}" style="width:${pct}%"></div>
+    </div>
+    <div class="grid-cols-1 md:grid-cols-2 gap-unit skills-grid ${collapsedClass}" id="grid-${sec.id}">${cardsHTML}</div>`;
   return phaseGroup;
 }
 
 function renderHero() {
   const { total, done, pct } = getGlobalStats();
   const rank = getRank(pct);
-  const hasRankClass = pct > 0 ? ' has-rank' : '';
+  const day = getDayCount();
+  const dayStr = day === 0 ? 'Not Started' : `Day ${Math.min(day, 65)} of 65`;
+
   return `
-  <section class="hero-section glass-surface">
-    <div class="hero-content">
-      <div class="hero-rank-badge"><div class="dot"></div><span class="label">RANK: ${rank.name.toUpperCase()}</span></div>
-      <h1 class="hero-title">65 DAYS TO MASTERY</h1>
-      <div class="hero-quote"><p>"The struggle itself is enough to fill a man's heart."</p><p class="author">— Albert Camus</p></div>
-      <button class="hero-cta" onclick="document.querySelector('.roadmap')?.scrollIntoView({behavior:'smooth'})">Continue →</button>
-    </div>
-    <div class="hero-avatar-wrap"><img src="./Gojo.png" alt="Gojo Mascot" /></div>
-    <div class="hero-bg-gradient"></div>
-  </section>
-  <section class="stats-grid">
-    <div class="stat-card glass-card">
-      <span class="stat-label">Skills Conquered</span>
-      <div class="stat-value"><span class="stat-big" id="count-done">${done}</span><span class="stat-sub">/ ${total}</span></div>
-      <div class="stat-bar-track"><div class="stat-bar-fill blue" id="global-bar" style="width:${pct}%;"></div></div>
-    </div>
-    <div class="stat-card glass-card">
-      <span class="stat-label">Total Progress</span>
-      <div class="stat-value"><span class="stat-big" id="ring-pct">${pct}%</span></div>
-      <div class="stat-bar-track"><div class="stat-bar-fill emerald" id="progress-bar-2" style="width:${pct}%;"></div></div>
-    </div>
-    <div class="stat-card glass-card rank-card${hasRankClass}" id="rank-card">
-      <span class="material-symbols-outlined rank-icon" id="rank-icon" style="font-variation-settings:'FILL' 1;">${rank.icon}</span>
-      <span class="stat-label" style="color:var(--phase-gold);">Current Rank</span>
-      <span class="rank-title" id="rank-title">${rank.name}</span>
-    </div>
-  </section>
-  <section class="control-bar">
-    <div class="filter-group" id="filter-tabs">
-      <button class="filter-btn active" data-filter="all">All</button>
-      <button class="filter-btn" data-filter="core">Core</button>
-      <button class="filter-btn" data-filter="hot">Hot <span class="material-symbols-outlined">local_fire_department</span></button>
-      <button class="filter-btn" data-filter="advanced">Advanced</button>
-      <button class="filter-btn" data-filter="undone">Remaining</button>
-      <button class="filter-btn" data-filter="done">Completed</button>
-      <button class="reset-btn" id="reset-btn">Reset</button>
-    </div>
-    <div class="search-wrap">
-      <span class="material-symbols-outlined">search</span>
-      <input class="search-input" type="text" placeholder="Search skills..." id="search-input" />
-    </div>
-  </section>`;
+  <div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap">
+    <section class="flex flex-col gap-unit">
+      <div class="flex items-center gap-4 mb-4">
+        <img alt="Gojo Mascot" class="w-16 h-16 rounded-full object-cover border border-outline-variant grayscale" src="./Gojo.png"/>
+        <div>
+          <h1 class="font-headline-lg text-headline-lg md:font-display md:text-display text-primary">${dayStr}</h1>
+          <p class="font-body-md text-body-md text-on-surface-variant mt-2">Rank: ${rank.name.toUpperCase()} • Global Progress</p>
+        </div>
+      </div>
+      <div class="card flex flex-col gap-6 p-8 border border-outline-variant bg-surface-bright">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="font-label-caps text-label-caps text-on-surface-variant block mb-2">CURRENT MASTERY</span>
+            <h2 class="font-headline-md text-headline-md text-primary">${done} / ${total} Skills Conquered</h2>
+          </div>
+          <span class="font-display text-display text-surface-container-highest" id="ring-pct">${pct}%</span>
+        </div>
+        <div class="w-full mt-4">
+          <div class="w-full h-[2px] progress-bar-bg relative">
+            <div class="absolute top-0 left-0 h-full progress-bar-fill" id="global-bar" style="width:${pct}%"></div>
+          </div>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-outline-variant" id="filter-tabs">
+          <button class="filter-btn active font-label-caps" data-filter="all">ALL</button>
+          <button class="filter-btn font-label-caps" data-filter="core">CORE</button>
+          <button class="filter-btn font-label-caps" data-filter="hot">HOT</button>
+          <button class="filter-btn font-label-caps" data-filter="advanced">ADVANCED</button>
+          <button class="filter-btn font-label-caps" data-filter="undone">REMAINING</button>
+          <button class="filter-btn font-label-caps" data-filter="done">COMPLETED</button>
+          <button class="btn-secondary font-label-caps ml-auto" id="reset-btn">RESET</button>
+        </div>
+        <div class="relative w-full mt-2">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+          <input class="search-input" type="text" placeholder="Search curriculum..." id="search-input" />
+        </div>
+      </div>
+    </section>
+  </div>`;
 }
 
 function renderPhasesView() {
@@ -449,13 +439,16 @@ function renderPhasesView() {
   while (tmp.firstChild) main.appendChild(tmp.firstChild);
 
   const firstIncomplete = findFirstIncompleteSection();
-  const roadmap = document.createElement('div'); roadmap.className = 'roadmap';
+  const roadmap = document.createElement('div'); 
+  roadmap.className = 'col-span-1 md:col-span-12 flex flex-col gap-8';
+  roadmap.innerHTML = '<h3 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4 mt-8">Curriculum Structure</h3>';
+  
   let rendered = 0;
   for (const sec of SECTIONS) {
     const el = renderSection(sec, sec.id === firstIncomplete);
     if (el) { roadmap.appendChild(el); rendered++; }
   }
-  if (!rendered) roadmap.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">emoji_events</span><p>All skills conquered · The path is yours</p></div>';
+  if (!rendered) roadmap.innerHTML += '<div class="p-8 text-center text-on-surface-variant"><span class="material-symbols-outlined text-4xl mb-2">emoji_events</span><p>All skills conquered</p></div>';
   main.appendChild(roadmap);
   updateStats();
   bindFilterEvents();
@@ -471,41 +464,40 @@ function renderRoadmapView() {
   const { done: totalDone, total: totalAll, pct: globalPct } = getGlobalStats();
   const firstIncomplete = findFirstIncompleteSection();
 
-  let html = `<h1 class="font-display" style="font-size:clamp(28px,5vw,48px);margin-bottom:8px;">65-Day Roadmap</h1>
-  <p style="color:var(--text-muted);margin-bottom:32px;">Your journey from Initiate to Elite Practitioner — ${totalDone}/${totalAll} skills conquered</p>
-  <div class="roadmap-view">`;
+  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
+    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">65-Day Roadmap</h1>
+    <p class="font-body-md text-on-surface-variant">Your journey from Initiate to Elite Practitioner — ${totalDone}/${totalAll} skills conquered</p>
+    <div class="flex flex-col gap-unit mt-4">`;
 
   SECTIONS.forEach((sec, i) => {
     const done = sec.skills.filter(s => checked[s.id]).length;
     const total = sec.skills.length;
     const pct = Math.round((done/total)*100);
-    const pc = getPhaseColor(sec.element || 'void');
     const isCurrent = sec.id === firstIncomplete;
     const isComplete = done === total;
-    const dotClass = isComplete ? 'filled' : '';
+    const bgClass = isCurrent ? 'border-l-4 border-l-secondary' : isComplete ? 'opacity-50' : '';
 
-    html += `<div class="timeline-item${isCurrent ? ' is-current' : ''}" style="animation-delay:${i * 0.05}s;">
-      <div class="timeline-dot ${dotClass}" style="color:${pc.color};border-color:${pc.color};"></div>
-      <div class="timeline-top">
-        <span class="timeline-phase-label" style="color:${pc.color};">${sec.phase || 'Phase'}</span>
-        <span class="timeline-days">${isCurrent ? '← YOU ARE HERE' : isComplete ? '✓ COMPLETE' : ''}</span>
+    html += `<div class="card flex flex-col gap-4 relative overflow-hidden ${bgClass}">
+      <div class="absolute top-4 right-4">
+        <span class="material-symbols-outlined ${isCurrent ? 'text-secondary animate-pulse' : isComplete ? 'text-secondary' : 'text-surface-container-highest'}">${isCurrent ? 'play_circle' : isComplete ? 'check_circle' : 'lock'}</span>
       </div>
-      <div class="timeline-title">${sec.title}</div>
-      <div class="timeline-bar-wrap">
-        <div class="timeline-bar"><div class="timeline-bar-fill" style="width:${pct}%;background:${pc.color};"></div></div>
-        <span class="timeline-bar-pct">${pct}%</span>
+      <span class="font-label-caps text-label-caps ${isCurrent ? 'text-secondary' : 'text-on-surface-variant'}">${sec.phase || 'MODULE'} ${isCurrent ? '• CURRENT' : ''}</span>
+      <h4 class="font-headline-md text-headline-md ${isComplete ? 'text-on-surface-variant line-through' : 'text-primary'}">${sec.title}</h4>
+      <div class="w-full mt-2">
+        <div class="flex justify-between mb-2">
+          <span class="font-caption text-caption text-on-surface-variant">Module Progress</span>
+          <span class="font-caption text-caption text-on-surface-variant">${pct}%</span>
+        </div>
+        <div class="w-full h-[2px] progress-bar-bg relative">
+          <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
+        </div>
       </div>
-      <div class="timeline-skills-count">${done} of ${total} skills conquered</div>
     </div>`;
   });
 
-  html += '</div>';
+  html += '</div></div>';
   main.innerHTML = html;
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// VIEW: STATS (dashboard)
-// ═══════════════════════════════════════════════════════════════════
 
 function renderStatsView() {
   const main = document.getElementById('main');
@@ -514,194 +506,267 @@ function renderStatsView() {
   const nextRank = getNextRank(pct);
   const day = getDayCount();
 
-  // Skills by element
-  const elementMap = {};
-  SECTIONS.forEach(sec => {
-    const el = sec.element || 'void';
-    if (!elementMap[el]) elementMap[el] = { total: 0, done: 0 };
-    sec.skills.forEach(s => {
-      elementMap[el].total++;
-      if (checked[s.id]) elementMap[el].done++;
-    });
-  });
-
-  // Skills by tag
-  const tagMap = { core: { total: 0, done: 0 }, hot: { total: 0, done: 0 }, advanced: { total: 0, done: 0 } };
-  getAllSkills().forEach(s => {
-    if (tagMap[s.tag]) { tagMap[s.tag].total++; if (checked[s.id]) tagMap[s.tag].done++; }
-  });
-
-  // Sections sorted by completion
-  const sectionStats = SECTIONS.map(sec => {
-    const d = sec.skills.filter(s => checked[s.id]).length;
-    return { title: sec.title, done: d, total: sec.skills.length, pct: Math.round((d/sec.skills.length)*100), color: getPhaseColor(sec.element || 'void').color };
-  }).sort((a,b) => b.pct - a.pct);
-
-  const elementNames = { earth: 'Earth · Python', water: 'Water · Stats/Math', fire: 'Fire · ML/DL', wind: 'Wind · NLP/CV', lightning: 'Lightning · GenAI', metal: 'Metal · MLOps', void: 'Void · Capstones' };
-  const elementColors = { earth: '#0077FF', water: '#0077FF', fire: '#10B981', wind: '#FBBF24', lightning: '#EF4444', metal: '#10B981', void: '#FBBF24' };
-
-  let html = `<h1 class="font-display" style="font-size:clamp(28px,5vw,48px);margin-bottom:32px;">Statistics Dashboard</h1>
-  <div class="stats-view">
-    <!-- Big Numbers -->
-    <div class="stats-row">
-      <div class="stats-panel">
-        <div class="stats-panel-title">Overview</div>
-        <div class="big-number-grid">
-          <div class="big-number-item"><div class="big-number" style="color:var(--phase-blue);">${done}</div><div class="big-number-label">Skills Done</div></div>
-          <div class="big-number-item"><div class="big-number" style="color:var(--text-muted);">${total - done}</div><div class="big-number-label">Remaining</div></div>
-          <div class="big-number-item"><div class="big-number" style="color:var(--phase-emerald);">${pct}%</div><div class="big-number-label">Progress</div></div>
-          <div class="big-number-item"><div class="big-number" style="color:var(--phase-gold);">${day}</div><div class="big-number-label">Day${day !== 1 ? 's' : ''} Elapsed</div></div>
+  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap">
+    <div>
+      <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Statistics Dashboard</h1>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+      <!-- Big Numbers -->
+      <div class="bg-surface-bright border border-outline-variant p-8 flex flex-col gap-8">
+        <div>
+          <h4 class="font-label-caps text-label-caps text-on-surface-variant mb-4 tracking-widest border-b border-outline-variant pb-2">OVERVIEW</h4>
+          <div class="flex items-end gap-2">
+            <span class="font-display text-display text-primary">${done}</span>
+            <span class="font-body-md text-body-md text-on-surface-variant pb-2">/ ${total}</span>
+          </div>
+          <span class="font-caption text-caption text-on-surface-variant">Skills Acquired</span>
+        </div>
+        <div class="w-full h-[2px] progress-bar-bg relative">
+          <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="flex flex-col gap-4 mt-4">
+          <div class="flex justify-between items-center border-b border-outline-variant pb-2">
+            <span class="font-body-md text-body-md text-on-surface-variant">Total Progress</span>
+            <span class="font-headline-md text-headline-md text-primary">${pct}%</span>
+          </div>
+          <div class="flex justify-between items-center border-b border-outline-variant pb-2">
+            <span class="font-body-md text-body-md text-on-surface-variant">Days Elapsed</span>
+            <span class="font-headline-md text-headline-md text-primary">${day}</span>
+          </div>
+          <div class="flex justify-between items-center pb-2">
+            <span class="font-body-md text-body-md text-on-surface-variant">Pace</span>
+            <span class="font-headline-md text-headline-md text-primary">${day>0 ? (done/day).toFixed(1) : '-'} / day</span>
+          </div>
         </div>
       </div>
-      <div class="stats-panel">
-        <div class="stats-panel-title">Rank Progression</div>
-        <div class="rank-ladder">`;
-
+      
+      <!-- Ranks -->
+      <div class="card flex flex-col gap-4">
+        <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2">RANK LADDER</h4>
+        <ul class="flex flex-col gap-3 font-body-md text-body-md">`;
+        
   RANKS.forEach(r => {
-    const cls = r.name === rank.name ? 'current' : (pct >= r.min ? 'achieved' : '');
-    html += `<div class="rank-step ${cls}">
-      <span class="material-symbols-outlined rank-step-icon" style="font-variation-settings:'FILL' 1;${r.name === rank.name ? 'color:var(--phase-gold);' : ''}">${r.icon}</span>
-      <span class="rank-step-name">${r.name}</span>
-      <span class="rank-step-pct">${r.min}%</span>
-    </div>`;
+    const isCurrent = r.name === rank.name;
+    const isAchieved = pct >= r.min;
+    html += `<li class="flex items-center gap-3 ${isAchieved ? 'text-primary' : 'text-outline-variant'}">
+      <span class="material-symbols-outlined ${isCurrent ? 'text-secondary' : ''}" style="font-variation-settings: 'FILL' ${isAchieved?1:0};">${r.icon}</span>
+      <span class="${isCurrent ? 'font-bold' : ''}">${r.name} (${r.min}%)</span>
+    </li>`;
   });
 
-  html += `</div>
-        ${nextRank ? `<p style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center;">Next rank: <strong style="color:var(--phase-gold);">${nextRank.name}</strong> at ${nextRank.min}% (${Math.max(0, Math.ceil(total * nextRank.min / 100) - done)} more skills)</p>` : '<p style="font-size:12px;color:var(--phase-gold);margin-top:12px;text-align:center;">🏆 Maximum rank achieved!</p>'}
-      </div>
-    </div>
-
-    <!-- By Element -->
-    <div class="stats-row">
-      <div class="stats-panel wide">
-        <div class="stats-panel-title">Progress by Element</div>
-        <div class="bar-chart">`;
-
-  Object.entries(elementMap).forEach(([el, data]) => {
-    const elPct = data.total > 0 ? Math.round((data.done/data.total)*100) : 0;
-    html += `<div class="bar-row">
-      <span class="bar-label">${elementNames[el] || el}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${elPct}%;background:${elementColors[el] || '#888'};"></div></div>
-      <span class="bar-value">${data.done}/${data.total}</span>
-    </div>`;
-  });
-
-  html += `</div></div></div>
-
-    <!-- By Tag -->
-    <div class="stats-row">
-      <div class="stats-panel">
-        <div class="stats-panel-title">By Skill Tag</div>
-        <div class="bar-chart">
-          <div class="bar-row"><span class="bar-label">Core</span><div class="bar-track"><div class="bar-fill" style="width:${tagMap.core.total ? Math.round(tagMap.core.done/tagMap.core.total*100) : 0}%;background:var(--text-secondary);"></div></div><span class="bar-value">${tagMap.core.done}/${tagMap.core.total}</span></div>
-          <div class="bar-row"><span class="bar-label">🔥 Hot</span><div class="bar-track"><div class="bar-fill" style="width:${tagMap.hot.total ? Math.round(tagMap.hot.done/tagMap.hot.total*100) : 0}%;background:var(--phase-gold);"></div></div><span class="bar-value">${tagMap.hot.done}/${tagMap.hot.total}</span></div>
-          <div class="bar-row"><span class="bar-label">Advanced</span><div class="bar-track"><div class="bar-fill" style="width:${tagMap.advanced.total ? Math.round(tagMap.advanced.done/tagMap.advanced.total*100) : 0}%;background:var(--phase-crimson);"></div></div><span class="bar-value">${tagMap.advanced.done}/${tagMap.advanced.total}</span></div>
-        </div>
-      </div>
-      <div class="stats-panel">
-        <div class="stats-panel-title">Sections by Completion</div>
-        <div class="bar-chart">`;
-
-  sectionStats.slice(0, 8).forEach(s => {
-    html += `<div class="bar-row"><span class="bar-label">${s.title.split('—')[0].trim()}</span><div class="bar-track"><div class="bar-fill" style="width:${s.pct}%;background:${s.color};"></div></div><span class="bar-value">${s.pct}%</span></div>`;
-  });
-
-  html += `</div></div></div>
-
-    <!-- Projection -->
-    <div class="stats-row">
-      <div class="stats-panel wide">
-        <div class="stats-panel-title">Projections</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
-          <div class="big-number-item">
-            <div class="big-number" style="color:var(--phase-blue);">${day > 0 && done > 0 ? Math.round(done/day * 10)/10 : '—'}</div>
-            <div class="big-number-label">Skills / Day Avg</div>
-          </div>
-          <div class="big-number-item">
-            <div class="big-number" style="color:var(--phase-emerald);">${day > 0 && done > 0 ? Math.ceil((total - done) / (done / day)) : '—'}</div>
-            <div class="big-number-label">Est. Days Left</div>
-          </div>
-          <div class="big-number-item">
-            <div class="big-number" style="color:var(--phase-gold);">${SECTIONS.filter(sec => sec.skills.every(s => checked[s.id])).length}</div>
-            <div class="big-number-label">Sections Complete</div>
-          </div>
-          <div class="big-number-item">
-            <div class="big-number" style="color:var(--phase-crimson);">${SECTIONS.length - SECTIONS.filter(sec => sec.skills.every(s => checked[s.id])).length}</div>
-            <div class="big-number-label">Sections Left</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>`;
-
+  html += `</ul></div></div></div>`;
   main.innerHTML = html;
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// VIEW: ARCHIVE (trophy wall of completed skills)
-// ═══════════════════════════════════════════════════════════════════
 
 function renderArchiveView() {
   const main = document.getElementById('main');
   const { done, total, pct } = getGlobalStats();
 
-  let html = `<h1 class="font-display" style="font-size:clamp(28px,5vw,48px);margin-bottom:8px;">Archive</h1>
-  <p style="color:var(--text-muted);margin-bottom:32px;">Your conquered skills — a record of every battle won</p>`;
+  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
+    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Archive</h1>
+    <p class="font-body-md text-on-surface-variant">Your conquered skills — ${done} / ${total} skills conquered (${pct}%)</p>
+    <div class="flex flex-col gap-unit mt-4">`;
 
   if (done === 0) {
-    html += `<div class="archive-empty"><span class="material-symbols-outlined">hourglass_empty</span><p>No skills conquered yet. Start your journey in the Phases tab.</p></div>`;
-    main.innerHTML = html;
-    return;
+    html += `<div class="p-8 text-center text-on-surface-variant">No skills conquered yet. Start your journey in the Phases tab.</div>`;
+  } else {
+    SECTIONS.forEach(sec => {
+      const doneSkills = sec.skills.filter(s => checked[s.id]);
+      if (doneSkills.length === 0) return;
+      
+      html += `<div class="card flex flex-col gap-4">
+        <h4 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-2 flex justify-between">
+          <span>${sec.title}</span>
+          <span class="text-on-surface-variant text-sm">${doneSkills.length}/${sec.skills.length}</span>
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">`;
+
+      doneSkills.forEach(skill => {
+        html += `<div class="flex items-center gap-3 text-on-surface-variant">
+          <span class="material-symbols-outlined text-secondary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="font-body-md text-sm">${skill.name.split('—')[0].trim()}</span>
+        </div>`;
+      });
+
+      html += `</div></div>`;
+    });
   }
 
-  html += `<div class="archive-view">
-    <div class="archive-count-bar">
-      <span class="material-symbols-outlined" style="font-size:32px;color:var(--phase-emerald);font-variation-settings:'FILL' 1;">emoji_events</span>
-      <div>
-        <div class="stat-value"><span class="stat-big" style="color:var(--phase-emerald);">${done}</span><span class="stat-sub"> / ${total} skills conquered (${pct}%)</span></div>
-      </div>
-    </div>`;
-
-  SECTIONS.forEach(sec => {
-    const doneSkills = sec.skills.filter(s => checked[s.id]);
-    if (doneSkills.length === 0) return;
-    const pc = getPhaseColor(sec.element || 'void');
-    const sectionIcon = SECTION_ICONS[sec.id] || 'school';
-
-    html += `<div>
-      <div class="archive-section-title">
-        <span class="material-symbols-outlined" style="font-size:16px;color:${pc.color};">${sectionIcon}</span>
-        <span style="color:${pc.color};">${sec.title}</span>
-        <span style="margin-left:auto;">${doneSkills.length}/${sec.skills.length}</span>
-      </div>
-      <div class="archive-skill-grid">`;
-
-    doneSkills.forEach(skill => {
-      html += `<div class="archive-skill-item">
-        <span class="material-symbols-outlined archive-skill-check" style="font-variation-settings:'FILL' 1;">check_circle</span>
-        <span class="archive-skill-name">${skill.name.split('—')[0].trim()}</span>
-      </div>`;
-    });
-
-    html += '</div></div>';
-  });
-
-  html += '</div>';
+  html += '</div></div>';
   main.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PANELS: Notifications & Settings
-// ═══════════════════════════════════════════════════════════════════
+function renderResourcesView() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap w-full">
+      <div class="grid grid-cols-12 gap-gutter w-full">
+        <div class="col-span-12 md:col-span-8 flex flex-col justify-center">
+          <h1 class="font-display text-display text-primary mb-6">Digital Library</h1>
+          <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Curated materials for profound focus and technical mastery. A sanctuary of thought distilled into text and code.</p>
+        </div>
+        <div class="col-span-12 md:col-span-4 flex justify-end items-center opacity-80">
+          <img class="w-32 h-auto object-contain grayscale opacity-50" src="./Gojo.png" />
+        </div>
+      </div>
+      
+      <section class="w-full">
+        <div class="flex items-center gap-4 mb-12">
+          <h2 class="font-headline-lg text-headline-lg text-primary">Essential Reading</h2>
+          <div class="h-px flex-grow bg-surface-container-high"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+          
+          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+            <div>
+              <div class="flex justify-between items-start mb-6">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">PAPER</span>
+                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">AI</span>
+              </div>
+              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Attention Is All You Need</h3>
+              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">The foundational paper introducing the Transformer architecture, dispensing with recurrence and convolutions entirely.</p>
+            </div>
+            <a href="https://arxiv.org/abs/1706.03762" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
+              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+            <div>
+              <div class="flex justify-between items-start mb-6">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">BOOK</span>
+                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">MATH</span>
+              </div>
+              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Mathematics for Machine Learning</h3>
+              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">The necessary mathematical concepts for understanding machine learning, from linear algebra to vector calculus.</p>
+            </div>
+            <a href="https://mml-book.github.io/" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
+              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+          <div class="card hairline-border p-8 flex flex-col justify-between h-full group card-hover">
+            <div>
+              <div class="flex justify-between items-start mb-6">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">COURSE</span>
+                <span class="font-label-caps text-label-caps text-secondary bg-secondary-fixed/20 px-2 py-1">DL</span>
+              </div>
+              <h3 class="font-headline-md text-headline-md text-primary mb-4 group-hover:text-secondary transition-colors">Neural Networks: Zero to Hero</h3>
+              <p class="font-body-md text-body-md text-on-surface-variant mb-8 line-clamp-3">Andrej Karpathy's masterclass on building neural networks from scratch in code.</p>
+            </div>
+            <a href="https://karpathy.ai/zero-to-hero.html" target="_blank" class="font-label-caps text-label-caps text-primary border-b border-primary self-start hover:text-secondary hover:border-secondary transition-colors pb-1 flex items-center gap-2">
+              READ DOCUMENT <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderJournalView() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="col-span-1 md:col-span-12 flex flex-col md:flex-row w-full min-h-[calc(100vh-64px-150px)] gap-gutter">
+      <!-- Sidebar -->
+      <aside class="w-full md:w-64 bg-surface-bright border border-outline-variant flex-shrink-0 flex flex-col h-auto md:h-full overflow-y-auto pt-8">
+        <div class="px-6 mb-6">
+          <h3 class="font-label-caps text-label-caps text-on-surface-variant mb-2">65-DAY MASTERY</h3>
+          <div class="text-sm font-body-md text-primary font-medium">Day ${getDayCount()} / 65</div>
+          <div class="w-full h-[2px] bg-surface-container mt-2">
+            <div class="h-full bg-secondary" style="width: ${(getDayCount()/65)*100}%;"></div>
+          </div>
+        </div>
+        <div class="flex-grow flex flex-col">
+          <div class="p-4 border-b border-outline-variant cursor-pointer bg-white border-l-2 border-l-primary font-medium">
+            <span class="font-body-md text-body-md">Day ${getDayCount()}</span>
+            <div class="font-caption text-caption text-on-surface-variant">Today</div>
+          </div>
+          <div class="p-4 border-b border-outline-variant cursor-pointer hover:bg-surface-container-low transition-colors">
+            <span class="font-body-md text-body-md">Day ${Math.max(0, getDayCount()-1)}</span>
+            <div class="font-caption text-caption text-on-surface-variant">Yesterday</div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-outline-variant mt-auto">
+          <button class="btn-secondary w-full flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined" style="font-size: 18px;">add</span> New Entry
+          </button>
+        </div>
+      </aside>
+
+      <!-- Editor Area -->
+      <section class="flex-grow bg-white flex flex-col h-auto md:h-full overflow-y-auto p-8 relative border border-outline-variant">
+        <div class="max-w-[800px] w-full mx-auto">
+          <!-- Meta Header -->
+          <div class="mb-12 border-b border-outline-variant pb-8">
+            <input class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none" placeholder="Entry Title..." type="text" value="Reflections on Structural Integrity"/>
+            <div class="flex flex-wrap gap-8">
+              <div class="flex-1 min-w-[200px]">
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">DAILY MOOD</label>
+                <div class="flex gap-4">
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-on-surface-variant" style="font-variation-settings: 'FILL' 1;">sentiment_excited</span>
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-outline-variant">sentiment_neutral</span>
+                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors text-outline-variant">sentiment_dissatisfied</span>
+                </div>
+              </div>
+              <div class="flex-1 min-w-[200px]">
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">HOURS LOGGED</label>
+                <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" type="number" value="4.5"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Daily Prompt -->
+          <div class="card bg-surface-bright p-8 mb-12 relative overflow-hidden border border-outline-variant rounded-none">
+            <div class="absolute top-0 left-0 w-1 h-full bg-secondary"></div>
+            <div class="font-label-caps text-label-caps text-secondary mb-2 flex items-center gap-2">
+              <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span> DAILY PROMPT
+            </div>
+            <p class="font-body-lg text-body-lg text-primary italic">What was your most challenging concept today, and how did you approach deconstructing it?</p>
+          </div>
+
+          <!-- Main Text Area -->
+          <div class="mb-12">
+            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">TECHNICAL LOG & REFLECTIONS</label>
+            <textarea class="w-full min-h-[400px] outline-none resize-y bg-transparent font-body-md text-primary leading-relaxed" placeholder="Start writing...">Today focused on applying the principles of structural integrity to the core architecture. The primary challenge remains achieving clean modularity without relying on excessive abstraction.
+
+I spent 2 hours refining the grid alignment across the navigation elements. The subtraction of elements is harder than addition. Every line must justify its existence. 
+
+Breakthrough: Using tonal stepping effectively creates necessary depth without violating the flat aesthetic rules.</textarea>
+          </div>
+
+          <!-- Key Breakthroughs -->
+          <div class="mb-24">
+            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">KEY BREAKTHROUGHS</label>
+            <div class="flex items-center gap-4 mb-4">
+              <span class="material-symbols-outlined text-secondary" style="font-size: 20px;">check_circle</span>
+              <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" type="text" value="Mastered tonal stepping for depth"/>
+            </div>
+            <div class="flex items-center gap-4 mb-4">
+              <span class="material-symbols-outlined text-outline-variant" style="font-size: 20px;">radio_button_unchecked</span>
+              <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent" placeholder="Add breakthrough..." type="text"/>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-8 border-t border-outline-variant">
+            <button class="btn-primary">Save Entry</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
 
 function openPanel(panelId, overlayId) {
   document.getElementById(panelId).classList.add('open');
-  document.getElementById(overlayId).classList.add('open');
+  document.getElementById(overlayId).classList.add('visible');
   document.body.style.overflow = 'hidden';
 }
 function closePanel(panelId, overlayId) {
   document.getElementById(panelId).classList.remove('open');
-  document.getElementById(overlayId).classList.remove('open');
+  document.getElementById(overlayId).classList.remove('visible');
   document.body.style.overflow = '';
 }
 
@@ -714,55 +779,23 @@ function renderNotifications() {
   const completeSections = SECTIONS.filter(sec => sec.skills.every(s => checked[s.id]));
   let items = [];
 
-  // Milestone notifications
   if (done === 0) {
-    items.push({ icon: 'rocket_launch', color: 'var(--phase-blue)', bg: 'rgba(0,119,255,0.1)', title: 'Ready to Launch', desc: 'You haven\'t started yet. Head to the Phases tab and check off your first skill to begin your 65-day journey!', time: 'Now' });
+    items.push({ icon: 'rocket_launch', title: 'Ready to Launch', desc: 'You haven\'t started yet. Check off your first skill to begin.', time: 'Now' });
   } else {
-    // Current rank
-    items.push({ icon: rank.icon, color: 'var(--phase-gold)', bg: 'rgba(251,191,36,0.1)', title: `Current Rank: ${rank.name}`, desc: `You've conquered ${done} of ${total} skills (${pct}%).`, time: `Day ${day}` });
-
-    // Next rank target
-    if (nextRank) {
-      const needed = Math.max(0, Math.ceil(total * nextRank.min / 100) - done);
-      items.push({ icon: 'trending_up', color: 'var(--phase-emerald)', bg: 'rgba(16,185,129,0.1)', title: `Next Rank: ${nextRank.name}`, desc: `Complete ${needed} more skill${needed !== 1 ? 's' : ''} to reach ${nextRank.name} (${nextRank.min}% required).`, time: 'Goal' });
-    }
-
-    // Completed sections
-    if (completeSections.length > 0) {
-      items.push({ icon: 'verified', color: 'var(--phase-emerald)', bg: 'rgba(16,185,129,0.1)', title: `${completeSections.length} Section${completeSections.length > 1 ? 's' : ''} Complete`, desc: completeSections.map(s => s.title.split('—')[0].trim()).join(', '), time: 'Achievement' });
-    }
-
-    // Daily pace
-    if (day > 0) {
-      const pace = Math.round(done / day * 10) / 10;
-      const idealPace = Math.round(total / 65 * 10) / 10;
-      const status = pace >= idealPace ? 'ahead of schedule' : 'behind schedule';
-      items.push({ icon: pace >= idealPace ? 'speed' : 'schedule', color: pace >= idealPace ? 'var(--phase-emerald)' : 'var(--phase-crimson)', bg: pace >= idealPace ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', title: `Pace: ${pace} skills/day`, desc: `Target is ${idealPace} skills/day. You're ${status}.`, time: `Day ${day}` });
-    }
-
-    // Suggest next section
-    const firstIncomplete = findFirstIncompleteSection();
-    if (firstIncomplete) {
-      const sec = SECTIONS.find(s => s.id === firstIncomplete);
-      const secDone = sec.skills.filter(s => checked[s.id]).length;
-      items.push({ icon: 'arrow_forward', color: 'var(--phase-blue)', bg: 'rgba(0,119,255,0.1)', title: 'Continue Here', desc: `${sec.title} — ${secDone}/${sec.skills.length} done. Keep pushing!`, time: 'Suggestion' });
-    }
+    items.push({ icon: rank.icon, title: `Current Rank: ${rank.name}`, desc: `Conquered ${done}/${total} skills.`, time: `Day ${day}` });
+    if (nextRank) items.push({ icon: 'trending_up', title: `Next Rank: ${nextRank.name}`, desc: `Complete more skills to reach ${nextRank.min}%.`, time: 'Goal' });
+    if (completeSections.length > 0) items.push({ icon: 'verified', title: `${completeSections.length} Sections Complete`, desc: completeSections.map(s => s.title.split('—')[0].trim()).join(', '), time: 'Achievement' });
   }
 
-  // Milestone celebrations
-  [10, 25, 50, 75, 100, 125].forEach(m => {
-    if (done >= m) {
-      items.push({ icon: 'celebration', color: 'var(--phase-gold)', bg: 'rgba(251,191,36,0.1)', title: `🎉 ${m} Skills Milestone!`, desc: `You've conquered ${m} skills. Legendary consistency.`, time: 'Milestone' });
-    }
-  });
-
   body.innerHTML = items.map(n => `
-    <div class="notif-item">
-      <div class="notif-icon" style="background:${n.bg};"><span class="material-symbols-outlined" style="color:${n.color};font-variation-settings:'FILL' 1;">${n.icon}</span></div>
-      <div class="notif-content">
-        <div class="notif-title">${n.title}</div>
-        <div class="notif-desc">${n.desc}</div>
-        <div class="notif-time">${n.time}</div>
+    <div class="flex gap-4 p-4 border border-outline-variant rounded-none bg-surface-bright mb-4">
+      <div class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-low text-secondary">
+        <span class="material-symbols-outlined">${n.icon}</span>
+      </div>
+      <div class="flex flex-col">
+        <div class="font-headline-md text-primary text-sm">${n.title}</div>
+        <div class="font-body-md text-on-surface-variant text-sm mt-1">${n.desc}</div>
+        <div class="font-caption text-outline-variant mt-2">${n.time}</div>
       </div>
     </div>`).join('');
 }
@@ -871,7 +904,15 @@ function switchView(view) {
   currentView = view;
   // Update nav active state
   document.querySelectorAll('.header-nav a').forEach(a => {
-    a.classList.toggle('active', a.dataset.view === view);
+    if (a.dataset.view) {
+      if (a.dataset.view === view) {
+        a.classList.remove('text-on-surface-variant');
+        a.classList.add('text-primary');
+      } else {
+        a.classList.remove('text-primary');
+        a.classList.add('text-on-surface-variant');
+      }
+    }
   });
   renderView();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -883,6 +924,8 @@ function renderView() {
     case 'roadmap': renderRoadmapView(); break;
     case 'stats':   renderStatsView();   break;
     case 'archive': renderArchiveView(); break;
+    case 'resources': renderResourcesView(); break;
+    case 'journal': renderJournalView(); break;
   }
   updateDayBadge();
 }
@@ -892,8 +935,18 @@ function bindFilterEvents() {
   document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
     btn.addEventListener('click', function() {
       currentFilter = btn.dataset.filter;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.remove('active');
+        b.classList.remove('bg-on-surface');
+        b.classList.remove('text-surface-bright');
+        b.classList.add('bg-surface-container-low');
+        b.classList.add('text-on-surface-variant');
+      });
       btn.classList.add('active');
+      btn.classList.remove('bg-surface-container-low');
+      btn.classList.remove('text-on-surface-variant');
+      btn.classList.add('bg-on-surface');
+      btn.classList.add('text-surface-bright');
       renderView();
     });
   });
@@ -923,7 +976,7 @@ function bindSearchEvent() {
           const el = renderSection(sec, !!searchQuery);
           if (el) { roadmap.appendChild(el); rendered++; }
         }
-        if (!rendered) roadmap.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">search_off</span><p>No skills match your search</p></div>';
+        if (!rendered) roadmap.innerHTML = '<div class="p-8 text-center text-on-surface-variant"><span class="material-symbols-outlined text-4xl mb-2">search_off</span><p>No skills match your search</p></div>';
       }
     });
   }
@@ -933,7 +986,9 @@ function bindSearchEvent() {
 document.querySelectorAll('.header-nav a').forEach(a => {
   a.addEventListener('click', function(e) {
     e.preventDefault();
-    switchView(a.dataset.view);
+    if (a.dataset.view) {
+      switchView(a.dataset.view);
+    }
   });
 });
 
@@ -953,43 +1008,6 @@ document.getElementById('settings-btn').addEventListener('click', function() {
 document.getElementById('settings-close').addEventListener('click', () => closePanel('settings-panel', 'settings-overlay'));
 document.getElementById('settings-overlay').addEventListener('click', () => closePanel('settings-panel', 'settings-overlay'));
 
-// ─── WebGL Shader Background ─────────────────────────────────────
-function initShader() {
-  const canvas = document.getElementById('shader-canvas');
-  if (!canvas) return;
-  function syncSize() {
-    const w = canvas.clientWidth || 1280, h = canvas.clientHeight || 720;
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-  }
-  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncSize).observe(canvas);
-  syncSize();
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  if (!gl) return;
-  const vs = `attribute vec2 a_position;varying vec2 v_texCoord;void main(){v_texCoord=a_position*0.5+0.5;gl_Position=vec4(a_position,0.0,1.0);}`;
-  const fs = `precision highp float;varying vec2 v_texCoord;uniform float u_time;
-float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
-float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);float a=hash(i);float b=hash(i+vec2(1.0,0.0));float c=hash(i+vec2(0.0,1.0));float d=hash(i+vec2(1.0,1.0));vec2 u=f*f*(3.0-2.0*f);return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;}
-void main(){vec2 uv=v_texCoord;float n=noise(uv*3.0+u_time*0.1);n+=0.5*noise(uv*6.0-u_time*0.05);vec3 c1=vec3(0.03,0.04,0.05);vec3 c2=vec3(0.01,0.01,0.01);vec3 fc=mix(c1,c2,n);fc+=sin(uv.y*200.0+u_time*2.0)*0.02;gl_FragColor=vec4(fc,1.0);}`;
-  function cs(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; }
-  const prog = gl.createProgram();
-  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
-  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
-  gl.linkProgram(prog); gl.useProgram(prog);
-  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
-  const pos = gl.getAttribLocation(prog, 'a_position');
-  gl.enableVertexAttribArray(pos); gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
-  const uTime = gl.getUniformLocation(prog, 'u_time');
-  (function render(t) {
-    if (typeof ResizeObserver === 'undefined') syncSize();
-    gl.viewport(0,0,canvas.width,canvas.height);
-    if(uTime) gl.uniform1f(uTime,t*0.001);
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-    requestAnimationFrame(render);
-  })(0);
-}
-
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
-initShader();
 renderView();
