@@ -245,6 +245,9 @@ function saveJournalState() {
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 
 // ─── Cloud Sync ────────────────────────────────────────────────
+const SUPABASE_URL = 'https://iyaehxeiiblkoafarpgz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5YWVoeGVpaWJsa29hZmFycGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjQ5NzUsImV4cCI6MjA5OTYwMDk3NX0.U0iqUCzpfdq6de-Ov4JllljvOUTkyKAEf_tDUgDBnc0';
+
 async function generateSyncToken() {
   showSyncStatus('Generating cloud sync session...');
   try {
@@ -254,17 +257,23 @@ async function generateSyncToken() {
       journalEntries,
       updatedAt: new Date().toISOString()
     };
-    const res = await fetch('https://json.extendsclass.com/bin', {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        title: 'sync_session',
+        content: JSON.stringify(payload)
+      })
     });
     if (res.ok) {
       const data = await res.json();
-      if (data && data.id) {
-        syncBucket = data.id;
+      if (data && data.length > 0 && data[0].id) {
+        syncBucket = data[0].id;
         localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
         const input = document.getElementById('sync-token-input');
         if (input) input.value = syncBucket;
@@ -295,12 +304,19 @@ async function pushToCloud() {
     updatedAt: new Date().toISOString()
   };
   try {
-    const res = await fetch(`https://json.extendsclass.com/bin/${syncBucket}`, {
-      method: 'PUT',
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        id: syncBucket,
+        title: 'sync_session',
+        content: JSON.stringify(payload)
+      })
     });
     if (res.ok) {
       showSyncStatus('Sync complete: Data uploaded.');
@@ -315,35 +331,48 @@ async function pushToCloud() {
 async function fetchFromCloud() {
   if (!syncEnabled || !syncBucket) return;
   try {
-    const res = await fetch(`https://json.extendsclass.com/bin/${syncBucket}`);
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals?id=eq.${syncBucket}`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
     if (res.ok) {
       const data = await res.json();
-      if (data) {
-        let updated = false;
-        if (data.checked && JSON.stringify(data.checked) !== JSON.stringify(checked)) {
-          checked = data.checked;
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
-          updated = true;
-        }
-        if (data.startDate && data.startDate !== localStorage.getItem(DAY_START_KEY)) {
-          localStorage.setItem(DAY_START_KEY, data.startDate);
-          updated = true;
-        }
-        if (data.journalEntries && JSON.stringify(data.journalEntries) !== JSON.stringify(journalEntries)) {
-          journalEntries = data.journalEntries;
-          try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
-          updated = true;
-        }
-        if (updated) {
-          showSyncStatus('Sync complete: Local data updated.');
-          renderView();
+      if (data && data.length > 0) {
+        const payloadStr = data[0].content;
+        let payload = null;
+        try { payload = JSON.parse(payloadStr); } catch (e) {}
+        if (payload) {
+          let updated = false;
+          if (payload.checked && JSON.stringify(payload.checked) !== JSON.stringify(checked)) {
+            checked = payload.checked;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+            updated = true;
+          }
+          if (payload.startDate && payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
+            localStorage.setItem(DAY_START_KEY, payload.startDate);
+            updated = true;
+          }
+          if (payload.journalEntries && JSON.stringify(payload.journalEntries) !== JSON.stringify(journalEntries)) {
+            journalEntries = payload.journalEntries;
+            try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+            updated = true;
+          }
+          if (updated) {
+            showSyncStatus('Sync complete: Local data updated.');
+            renderView();
+          } else {
+            showSyncStatus('Sync complete: Already up to date.');
+          }
         } else {
-          showSyncStatus('Sync complete: Already up to date.');
+          showSyncStatus('Sync payload invalid.');
         }
+      } else {
+        showSyncStatus('Sync bin not found. Re-uploading...');
+        pushToCloud();
       }
-    } else if (res.status === 404) {
-      showSyncStatus('Sync bin not found. Re-uploading...');
-      pushToCloud();
     } else {
       showSyncStatus('Sync download failed.');
     }
