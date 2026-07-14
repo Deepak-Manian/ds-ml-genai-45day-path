@@ -45,7 +45,7 @@
 }
 
 /* Active Nav state */
-.header-nav a.active, #mobile-header-nav a.active {
+#header-nav a.active, #mobile-header-nav a.active {
   color: #000 !important;
   border-bottom-color: #735c00 !important;
   font-weight: 500;

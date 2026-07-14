@@ -903,13 +903,15 @@ function renderSettings() {
 function switchView(view) {
   currentView = view;
   // Update nav active state
-  document.querySelectorAll('.header-nav a').forEach(a => {
+  document.querySelectorAll('#header-nav a, #mobile-header-nav a').forEach(a => {
     if (a.dataset.view) {
       if (a.dataset.view === view) {
         a.classList.remove('text-on-surface-variant');
         a.classList.add('text-primary');
+        a.classList.add('active');
       } else {
         a.classList.remove('text-primary');
+        a.classList.remove('active');
         a.classList.add('text-on-surface-variant');
       }
     }
@@ -983,7 +985,7 @@ function bindSearchEvent() {
 }
 
 // ─── Navigation & Panel bindings ─────────────────────────────────
-document.querySelectorAll('.header-nav a').forEach(a => {
+document.querySelectorAll('#header-nav a, #mobile-header-nav a').forEach(a => {
   a.addEventListener('click', function(e) {
     e.preventDefault();
     if (a.dataset.view) {
