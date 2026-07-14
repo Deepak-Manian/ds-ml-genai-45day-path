@@ -37,6 +37,40 @@ function startBackgroundSync() {
   }
 }
 
+function getDetailedElapsedTime() {
+  const startStr = localStorage.getItem(DAY_START_KEY);
+  if (!startStr) return null;
+  const start = new Date(startStr);
+  const diffMs = new Date() - start;
+  
+  const secs = Math.floor(diffMs / 1000) % 60;
+  const mins = Math.floor(diffMs / (1000 * 60)) % 60;
+  const hours = Math.floor(diffMs / (1000 * 60 * 60)) % 24;
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  return { days, hours, mins, secs, totalMs: diffMs };
+}
+
+let headerTimerInterval = null;
+function startHeaderTimer() {
+  if (headerTimerInterval) clearInterval(headerTimerInterval);
+  headerTimerInterval = setInterval(() => {
+    const elapsed = getDetailedElapsedTime();
+    const el = document.getElementById('day-counter');
+    if (!el) return;
+    if (!elapsed) {
+      el.textContent = 'NOT STARTED';
+    } else {
+      el.textContent = `DAY ${elapsed.days + 1} (${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m ${elapsed.secs}s)`;
+    }
+    
+    const statsTimerEl = document.getElementById('stats-live-timer');
+    if (statsTimerEl && elapsed) {
+      statsTimerEl.textContent = `${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m ${elapsed.secs}s`;
+    }
+  }, 1000);
+}
+
 // ─── Rank system ───────────────────────────────────────────────
 const RANKS = [
   { min: 0,   name: 'Initiate',           icon: 'person' },
@@ -82,10 +116,14 @@ function getDayCount() {
   return Math.max(1, Math.ceil((new Date() - start) / (1000 * 60 * 60 * 24)));
 }
 function updateDayBadge() {
-  const badge = document.getElementById('day-counter');
-  if (!badge) return;
-  const day = getDayCount();
-  badge.textContent = day === 0 ? 'NOT STARTED' : 'DAY ' + Math.min(day, 65) + '/65';
+  const elapsed = getDetailedElapsedTime();
+  const el = document.getElementById('day-counter');
+  if (!el) return;
+  if (!elapsed) {
+    el.textContent = 'NOT STARTED';
+  } else {
+    el.textContent = `DAY ${elapsed.days + 1} (${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m ${elapsed.secs}s)`;
+  }
 }
 
 // ─── Quotes ─────────────────────────────────────────────────────
@@ -210,24 +248,30 @@ function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 async function generateSyncToken() {
   showSyncStatus('Generating cloud sync session...');
   try {
-    const email = `zm_sync_${Math.random().toString(36).substring(2, 10)}@example.com`;
-    const res = await fetch('https://kvdb.io/', {
+    const payload = {
+      checked,
+      startDate: localStorage.getItem(DAY_START_KEY),
+      journalEntries,
+      updatedAt: new Date().toISOString()
+    };
+    const res = await fetch('https://json.extendsclass.com/bin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `email=${encodeURIComponent(email)}`
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
     if (res.ok) {
-      const bucketId = (await res.text()).trim();
-      if (bucketId) {
-        syncBucket = bucketId;
+      const data = await res.json();
+      if (data && data.id) {
+        syncBucket = data.id;
         localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
         const input = document.getElementById('sync-token-input');
         if (input) input.value = syncBucket;
         showSyncStatus('Sync token generated. Uploading data...');
-        await pushToCloud();
         startBackgroundSync();
       } else {
-        showSyncStatus('Failed to generate token (empty response).');
+        showSyncStatus('Failed to generate token (invalid response).');
       }
     } else {
       showSyncStatus('Failed to generate token (server error).');
@@ -251,8 +295,8 @@ async function pushToCloud() {
     updatedAt: new Date().toISOString()
   };
   try {
-    const res = await fetch(`https://kvdb.io/${syncBucket}/data`, {
-      method: 'POST',
+    const res = await fetch(`https://json.extendsclass.com/bin/${syncBucket}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
@@ -271,7 +315,7 @@ async function pushToCloud() {
 async function fetchFromCloud() {
   if (!syncEnabled || !syncBucket) return;
   try {
-    const res = await fetch(`https://kvdb.io/${syncBucket}/data`);
+    const res = await fetch(`https://json.extendsclass.com/bin/${syncBucket}`);
     if (res.ok) {
       const data = await res.json();
       if (data) {
@@ -298,11 +342,9 @@ async function fetchFromCloud() {
         }
       }
     } else if (res.status === 404) {
-      showSyncStatus('Sync: Cloud is empty. Uploading local data...');
+      showSyncStatus('Sync bin not found. Re-uploading...');
       pushToCloud();
     } else {
-      showSyncStatus('Sync failed to download.');
-    }
   } catch (err) {
     showSyncStatus('Sync error: ' + err.message);
   }
@@ -676,21 +718,75 @@ function renderRoadmapView() {
   main.innerHTML = html;
 }
 
+function getTotalHoursLogged() {
+  let total = 0;
+  for (const day in journalEntries) {
+    const hr = parseFloat(journalEntries[day].hours);
+    if (!isNaN(hr)) total += hr;
+  }
+  return total;
+}
+
 function renderStatsView() {
   const main = document.getElementById('main');
   const { total, done, pct } = getGlobalStats();
   const rank = getRank(pct);
   const nextRank = getNextRank(pct);
-  const day = getDayCount();
+  const elapsed = getDetailedElapsedTime();
+  const daysElapsed = elapsed ? (elapsed.totalMs / (1000 * 60 * 60 * 24)) : 0;
+  const totalHours = getTotalHoursLogged();
+  
+  let paceText = "Not enough progress data yet.";
+  let projectionText = "Check off your first skills and log study hours in your Journal to calculate speed projections.";
+  
+  if (done > 0 && daysElapsed > 0.001) {
+    const skillsPerDay = done / daysElapsed;
+    const hoursPerDay = totalHours / daysElapsed;
+    const remainingSkills = total - done;
+    
+    const skillsRate = skillsPerDay > 0 ? skillsPerDay : 1;
+    const estimatedDaysRemaining = remainingSkills / skillsRate;
+    
+    const hoursPerSkill = done > 0 ? (totalHours / done) : 0;
+    const estimatedHoursRemaining = remainingSkills * hoursPerSkill;
+    
+    const completionDate = new Date();
+    completionDate.setDate(completionDate.getDate() + estimatedDaysRemaining);
+    
+    paceText = `Completing <strong>${skillsPerDay.toFixed(2)} skills/day</strong>, studying <strong>${hoursPerDay.toFixed(1)} hrs/day</strong>.`;
+    projectionText = `To conquer the remaining <strong>${remainingSkills} skills</strong>, you need approximately <strong>${estimatedHoursRemaining.toFixed(1)} hours</strong> of study, which will take about <strong>${estimatedDaysRemaining.toFixed(1)} days</strong>.<br/><span class="text-secondary mt-2 block font-bold">Projected graduation date: ${completionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`;
+  }
 
-  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap">
+  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-6 md:gap-8">
     <div>
       <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Statistics Dashboard</h1>
     </div>
     
+    <!-- Live Journey Timer & Projections -->
+    <div class="card bg-surface-bright border border-outline-variant p-6 md:p-8 flex flex-col gap-6">
+      <h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 uppercase tracking-widest text-xs">JOURNEY TIMER & PROJECTIONS</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="flex flex-col gap-1">
+          <span class="font-caption text-xs text-on-surface-variant">TOTAL ACTIVE TIME</span>
+          <span class="font-mono text-lg md:text-xl text-primary font-bold" id="stats-live-timer">Loading...</span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <span class="font-caption text-xs text-on-surface-variant">TOTAL HOURS STUDIED</span>
+          <span class="font-mono text-lg md:text-xl text-secondary font-bold">${totalHours.toFixed(1)} hours</span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <span class="font-caption text-xs text-on-surface-variant">CURRENT STUDY PACE</span>
+          <span class="font-body-md text-sm text-primary">${paceText}</span>
+        </div>
+      </div>
+      <div class="p-4 bg-surface-container-low border border-outline-variant font-body-md text-sm text-primary">
+        ${projectionText}
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
       <!-- Big Numbers -->
-      <div class="bg-surface-bright border border-outline-variant p-8 flex flex-col gap-8">
+      <div class="bg-surface-bright border border-outline-variant p-6 md:p-8 flex flex-col gap-8">
         <div>
           <h4 class="font-label-caps text-label-caps text-on-surface-variant mb-4 tracking-widest border-b border-outline-variant pb-2">OVERVIEW</h4>
           <div class="flex items-end gap-2">
@@ -702,24 +798,24 @@ function renderStatsView() {
         <div class="w-full h-[2px] progress-bar-bg relative">
           <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
         </div>
-        <div class="flex flex-col gap-4 mt-4">
+        <div class="flex flex-col gap-4 mt-4 text-sm font-body-md">
           <div class="flex justify-between items-center border-b border-outline-variant pb-2">
-            <span class="font-body-md text-body-md text-on-surface-variant">Total Progress</span>
-            <span class="font-headline-md text-headline-md text-primary">${pct}%</span>
+            <span class="text-on-surface-variant">Total Progress</span>
+            <span class="text-primary font-bold">${pct}%</span>
           </div>
           <div class="flex justify-between items-center border-b border-outline-variant pb-2">
-            <span class="font-body-md text-body-md text-on-surface-variant">Days Elapsed</span>
-            <span class="font-headline-md text-headline-md text-primary">${day}</span>
+            <span class="text-on-surface-variant">Days Elapsed</span>
+            <span class="text-primary font-bold">${Math.floor(daysElapsed)}</span>
           </div>
           <div class="flex justify-between items-center pb-2">
-            <span class="font-body-md text-body-md text-on-surface-variant">Pace</span>
-            <span class="font-headline-md text-headline-md text-primary">${day>0 ? (done/day).toFixed(1) : '-'} / day</span>
+            <span class="text-on-surface-variant">Average Speed</span>
+            <span class="text-primary font-bold">${daysElapsed > 0.1 ? (done / daysElapsed).toFixed(1) : '-'} skills / day</span>
           </div>
         </div>
       </div>
       
       <!-- Ranks -->
-      <div class="card flex flex-col gap-4">
+      <div class="card flex flex-col gap-4 p-6 md:p-8 bg-white border border-outline-variant">
         <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2">RANK LADDER</h4>
         <ul class="flex flex-col gap-3 font-body-md text-body-md">`;
         
@@ -1628,6 +1724,7 @@ document.getElementById('settings-overlay').addEventListener('click', () => clos
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
 startBackgroundSync();
+startHeaderTimer();
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && syncEnabled) {
