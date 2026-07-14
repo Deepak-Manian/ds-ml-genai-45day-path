@@ -345,6 +345,8 @@ async function fetchFromCloud() {
       showSyncStatus('Sync bin not found. Re-uploading...');
       pushToCloud();
     } else {
+      showSyncStatus('Sync download failed.');
+    }
   } catch (err) {
     showSyncStatus('Sync error: ' + err.message);
   }
