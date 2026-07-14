@@ -11,31 +11,7 @@ let settings = { compactCards: false };
 let journalEntries = {};
 let journalSelectedDay = 1;
 
-const SYNC_BUCKET_KEY = 'lockin_sync_bucket';
-const SYNC_ENABLED_KEY = 'lockin_sync_enabled';
-
-let syncBucket = localStorage.getItem(SYNC_BUCKET_KEY) || '';
-let syncEnabled = localStorage.getItem(SYNC_ENABLED_KEY) === 'true';
-
-// URL Sync Auto-Configuration
-const urlParams = new URLSearchParams(window.location.search);
-const urlSyncToken = urlParams.get('sync');
-if (urlSyncToken) {
-  syncBucket = urlSyncToken;
-  syncEnabled = true;
-  localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
-  localStorage.setItem(SYNC_ENABLED_KEY, 'true');
-  window.history.replaceState({}, document.title, window.location.pathname);
-}
-
-let syncInterval = null;
-function startBackgroundSync() {
-  if (syncInterval) clearInterval(syncInterval);
-  if (syncEnabled && syncBucket) {
-    fetchFromCloud();
-    syncInterval = setInterval(fetchFromCloud, 10000);
-  }
-}
+// Old sync variables removed
 
 function getDetailedElapsedTime() {
   const startStr = localStorage.getItem(DAY_START_KEY);
@@ -235,150 +211,71 @@ function loadState() {
 }
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
-  if (syncEnabled) pushToCloud();
 }
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {} }
 function saveJournalState() {
   try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
-  if (syncEnabled) pushToCloud();
 }
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 
-// ─── Cloud Sync ────────────────────────────────────────────────
+// ─── Cloud Sync (Supabase) ──────────────────────────────────────
 const SUPABASE_URL = 'https://iyaehxeiiblkoafarpgz.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5YWVoeGVpaWJsa29hZmFycGd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjQ5NzUsImV4cCI6MjA5OTYwMDk3NX0.U0iqUCzpfdq6de-Ov4JllljvOUTkyKAEf_tDUgDBnc0';
 
-async function generateSyncToken() {
-  showSyncStatus('Generating cloud sync session...');
+let supabaseClient = null;
+if (typeof supabase !== 'undefined') {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+async function loadJournalsFromSupabase() {
+  if (!supabaseClient) return;
   try {
-    const payload = {
-      checked,
-      startDate: localStorage.getItem(DAY_START_KEY),
-      journalEntries,
-      updatedAt: new Date().toISOString()
-    };
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({
-        title: 'sync_session',
-        content: JSON.stringify(payload)
-      })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0 && data[0].id) {
-        syncBucket = data[0].id;
-        localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
-        const input = document.getElementById('sync-token-input');
-        if (input) input.value = syncBucket;
-        showSyncStatus('Sync token generated. Uploading data...');
-        startBackgroundSync();
-      } else {
-        showSyncStatus('Failed to generate token (invalid response).');
+    const { data, error } = await supabaseClient.from('journals').select('*');
+    if (error) throw error;
+    
+    if (data) {
+      let updated = false;
+      for (const row of data) {
+        // We identify the day from the title
+        if (row.title && row.title.startsWith('Day ')) {
+          const dayMatch = row.title.match(/Day (\d+)/);
+          if (dayMatch && dayMatch[1]) {
+            const dayNum = parseInt(dayMatch[1], 10);
+            try {
+              const entry = JSON.parse(row.content);
+              // Store real supabase ID so we can update it
+              entry.id = row.id; 
+              if (JSON.stringify(journalEntries[dayNum]) !== JSON.stringify(entry)) {
+                journalEntries[dayNum] = entry;
+                updated = true;
+              }
+            } catch(e) {}
+          }
+        }
       }
-    } else {
-      showSyncStatus('Failed to generate token (server error).');
+      if (updated) {
+        try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+        if (currentView === 'journal') renderView();
+      }
     }
   } catch (err) {
-    showSyncStatus('Sync generation error: ' + err.message);
+    console.error('Failed to load journals from Supabase:', err);
   }
+}
+
+function setupJournalRealtime() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('public:journals')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'journals' }, payload => {
+      loadJournalsFromSupabase();
+    })
+    .subscribe();
 }
 
 function showSyncStatus(msg) {
   const status = document.getElementById('sync-status');
   if (status) status.textContent = msg;
-}
-
-async function pushToCloud() {
-  if (!syncEnabled || !syncBucket) return;
-  const payload = {
-    checked,
-    startDate: localStorage.getItem(DAY_START_KEY),
-    journalEntries,
-    updatedAt: new Date().toISOString()
-  };
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        id: syncBucket,
-        title: 'sync_session',
-        content: JSON.stringify(payload)
-      })
-    });
-    if (res.ok) {
-      showSyncStatus('Sync complete: Data uploaded.');
-    } else {
-      showSyncStatus('Sync failed to upload.');
-    }
-  } catch (err) {
-    showSyncStatus('Sync error: ' + err.message);
-  }
-}
-
-async function fetchFromCloud() {
-  if (!syncEnabled || !syncBucket) return;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/journals?id=eq.${syncBucket}`, {
-      method: 'GET',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const payloadStr = data[0].content;
-        let payload = null;
-        try { payload = JSON.parse(payloadStr); } catch (e) {}
-        if (payload) {
-          let updated = false;
-          if (payload.checked && JSON.stringify(payload.checked) !== JSON.stringify(checked)) {
-            checked = payload.checked;
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
-            updated = true;
-          }
-          if (payload.startDate && payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
-            localStorage.setItem(DAY_START_KEY, payload.startDate);
-            updated = true;
-          }
-          if (payload.journalEntries && JSON.stringify(payload.journalEntries) !== JSON.stringify(journalEntries)) {
-            journalEntries = payload.journalEntries;
-            try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
-            updated = true;
-          }
-          if (updated) {
-            showSyncStatus('Sync complete: Local data updated.');
-            renderView();
-          } else {
-            showSyncStatus('Sync complete: Already up to date.');
-          }
-        } else {
-          showSyncStatus('Sync payload invalid.');
-        }
-      } else {
-        showSyncStatus('Sync bin not found. Re-uploading...');
-        pushToCloud();
-      }
-    } else {
-      showSyncStatus('Sync download failed.');
-    }
-  } catch (err) {
-    showSyncStatus('Sync error: ' + err.message);
-  }
 }
 
 // ─── Stats ──────────────────────────────────────────────────────
@@ -1363,7 +1260,7 @@ function updateBtIcons() {
   });
 }
 
-function saveJournalEntry() {
+async function saveJournalEntry() {
   const title = document.getElementById('journal-title').value.trim();
   const hours = parseFloat(document.getElementById('journal-hours').value) || 0;
   const text = document.getElementById('journal-text').value.trim();
@@ -1375,7 +1272,7 @@ function saveJournalEntry() {
   });
   breakthroughs.push('');
 
-  journalEntries[journalSelectedDay] = {
+  const entryData = {
     title,
     mood: activeJournalMood,
     hours,
@@ -1383,14 +1280,42 @@ function saveJournalEntry() {
     breakthroughs
   };
 
+  const oldEntry = journalEntries[journalSelectedDay] || {};
+  journalEntries[journalSelectedDay] = { ...oldEntry, ...entryData };
+
   saveJournalState();
   
   const status = document.getElementById('save-status');
-  if (status) {
-    status.textContent = 'Saved successfully.';
-    setTimeout(() => { status.textContent = ''; }, 3000);
+  if (status) status.textContent = 'Saving to cloud...';
+
+  if (supabaseClient) {
+    try {
+      const payload = {
+        title: `Day ${journalSelectedDay}: ${title || 'Untitled'}`,
+        content: JSON.stringify(journalEntries[journalSelectedDay])
+      };
+      
+      let res;
+      if (oldEntry.id) {
+        res = await supabaseClient.from('journals').update(payload).eq('id', oldEntry.id);
+      } else {
+        res = await supabaseClient.from('journals').insert([payload]).select();
+        if (res.data && res.data.length > 0) {
+          journalEntries[journalSelectedDay].id = res.data[0].id;
+          saveJournalState();
+        }
+      }
+      if (res.error) throw res.error;
+      if (status) status.textContent = 'Saved successfully.';
+    } catch(err) {
+      console.error(err);
+      if (status) status.textContent = 'Error saving to cloud.';
+    }
+  } else {
+    if (status) status.textContent = 'Saved locally.';
   }
   
+  setTimeout(() => { if(status) status.textContent = ''; }, 3000);
   renderJournalView();
 }
 
@@ -1467,28 +1392,10 @@ function renderSettings() {
         <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 tracking-widest uppercase">CLOUD SYNC</h4>
         <div class="flex items-center justify-between">
           <div>
-            <div class="font-body-md text-primary font-medium">Enable Cloud Sync</div>
-            <div class="font-caption text-on-surface-variant text-sm">Synchronize progress across devices</div>
+            <div class="font-body-md text-primary font-medium">Supabase Status</div>
+            <div class="font-caption text-on-surface-variant text-sm" id="sync-status">${typeof supabase !== 'undefined' ? 'Connected to Supabase (Journals syncing)' : 'Not Connected'}</div>
           </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="toggle-sync" class="sr-only peer" ${syncEnabled ? 'checked' : ''}>
-            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-          </label>
-        </div>
-        <div id="sync-details" class="flex flex-col gap-3 ${syncEnabled ? '' : 'hidden'}">
-          <div class="flex flex-col gap-1">
-            <label class="font-caption text-on-surface-variant">Sync Token</label>
-            <div class="flex gap-2">
-              <input type="text" id="sync-token-input" class="flex-grow font-mono text-xs border border-outline-variant p-2 outline-none focus:border-secondary bg-transparent focus:ring-0" placeholder="Enter sync token..." value="${syncBucket}"/>
-              <button class="px-3 py-1 bg-primary text-white text-xs font-label-caps uppercase hover:opacity-85" id="btn-save-token">Save</button>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button class="flex-1 min-w-[90px] py-2 border border-outline text-xs font-label-caps uppercase hover:bg-surface-container-low" id="btn-generate-token">New Token</button>
-            <button class="flex-1 min-w-[90px] py-2 border border-outline text-xs font-label-caps uppercase hover:bg-surface-container-low" id="btn-copy-sync-link">Copy Link</button>
-            <button class="flex-1 min-w-[90px] py-2 bg-secondary text-white text-xs font-label-caps uppercase hover:opacity-85" id="btn-sync-now">Sync Now</button>
-          </div>
-          <div id="sync-status" class="font-caption text-on-surface-variant text-xs italic"></div>
+          <span class="material-symbols-outlined ${typeof supabase !== 'undefined' ? 'text-secondary' : 'text-outline-variant'}">cloud_sync</span>
         </div>
       </div>
 
@@ -1549,53 +1456,7 @@ function renderSettings() {
     if (currentView === 'phases') renderView();
   });
 
-  const toggleSync = document.getElementById('toggle-sync');
-  const syncDetails = document.getElementById('sync-details');
-  toggleSync.addEventListener('change', function() {
-    syncEnabled = this.checked;
-    localStorage.setItem(SYNC_ENABLED_KEY, syncEnabled);
-    syncDetails.classList.toggle('hidden', !syncEnabled);
-    if (syncEnabled) {
-      if (!syncBucket) generateSyncToken();
-      else startBackgroundSync();
-    } else {
-      if (syncInterval) clearInterval(syncInterval);
-    }
-  });
-
-  document.getElementById('btn-save-token').addEventListener('click', function() {
-    const val = document.getElementById('sync-token-input').value.trim();
-    if (val) {
-      syncBucket = val;
-      localStorage.setItem(SYNC_BUCKET_KEY, syncBucket);
-      showSyncStatus('Token saved. Fetching data...');
-      fetchFromCloud().then(() => startBackgroundSync());
-    }
-  });
-
-  document.getElementById('btn-generate-token').addEventListener('click', function() {
-    if (confirm('Generate a new sync token? If you already have data on another device, enter that token instead.')) {
-      generateSyncToken();
-    }
-  });
-
-  document.getElementById('btn-copy-sync-link').addEventListener('click', function() {
-    if (!syncBucket) {
-      alert('Generate a token first.');
-      return;
-    }
-    const link = window.location.origin + window.location.pathname + '?sync=' + syncBucket;
-    navigator.clipboard.writeText(link).then(() => {
-      showSyncStatus('Sync link copied!');
-    }).catch(() => {
-      showSyncStatus('Failed to copy sync link.');
-    });
-  });
-
-  document.getElementById('btn-sync-now').addEventListener('click', function() {
-    showSyncStatus('Syncing...');
-    pushToCloud().then(() => fetchFromCloud());
-  });
+  // Sync UI removed
 
   document.getElementById('btn-export').addEventListener('click', function() {
     const data = { checked, startDate: localStorage.getItem(DAY_START_KEY), exportedAt: new Date().toISOString(), version: 3 };
@@ -1754,18 +1615,9 @@ document.getElementById('settings-overlay').addEventListener('click', () => clos
 
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
-startBackgroundSync();
 startHeaderTimer();
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && syncEnabled) {
-    fetchFromCloud();
-  }
-});
-window.addEventListener('focus', () => {
-  if (syncEnabled) {
-    fetchFromCloud();
-  }
+loadJournalsFromSupabase().then(() => {
+  setupJournalRealtime();
 });
 
 renderView();
