@@ -229,8 +229,91 @@ if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
+let currentUser = null;
+let isLoginMode = true;
+
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    currentUser = session?.user || null;
+    const authOverlay = document.getElementById('auth-overlay');
+    if (currentUser) {
+      if (authOverlay) authOverlay.classList.add('hidden');
+      loadJournalsFromSupabase().then(() => {
+        setupJournalRealtime();
+      });
+    } else {
+      if (authOverlay) authOverlay.classList.remove('hidden');
+    }
+  });
+}
+
+function toggleAuthMode(e) {
+  if (e) e.preventDefault();
+  isLoginMode = !isLoginMode;
+  document.getElementById('auth-title').textContent = isLoginMode ? 'LOGIN TO ZEN' : 'CREATE ACCOUNT';
+  document.getElementById('auth-submit-btn').textContent = isLoginMode ? 'LOGIN' : 'SIGN UP';
+  document.getElementById('auth-toggle-link').textContent = isLoginMode ? "Don't have an account? Sign up" : 'Already have an account? Login';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+async function handleAuthSubmit() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value.trim();
+  const errorEl = document.getElementById('auth-error');
+  errorEl.classList.add('hidden');
+  
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter email and password.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  
+  const btn = document.getElementById('auth-submit-btn');
+  const originalText = btn.textContent;
+  btn.textContent = 'PROCESSING...';
+  
+  try {
+    let res;
+    if (isLoginMode) {
+      res = await supabaseClient.auth.signInWithPassword({ email, password });
+    } else {
+      res = await supabaseClient.auth.signUp({ email, password });
+    }
+    
+    if (res.error) throw res.error;
+    
+    if (!isLoginMode && res.data?.user && res.data?.session === null) {
+      errorEl.textContent = 'Please check your email to confirm your account.';
+      errorEl.classList.remove('hidden');
+      errorEl.classList.remove('text-error');
+      errorEl.classList.add('text-secondary');
+    }
+  } catch(err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+    errorEl.classList.add('text-error');
+    errorEl.classList.remove('text-secondary');
+  } finally {
+    btn.textContent = originalText;
+  }
+}
+
+async function handleLogout() {
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+    checked = {};
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch(e) {}
+    journalEntries = {};
+    renderView();
+  }
+}
+
+window.toggleAuthMode = toggleAuthMode;
+window.handleAuthSubmit = handleAuthSubmit;
+window.handleLogout = handleLogout;
+
 async function saveGlobalStateToSupabase() {
-  if (!supabaseClient) return;
+  if (!supabaseClient || !currentUser) return;
   try {
     const payload = { checked, startDate: localStorage.getItem(DAY_START_KEY) };
     const { data: existing, error: findErr } = await supabaseClient.from('journals').select('id').eq('title', 'global_state');
@@ -247,7 +330,7 @@ async function saveGlobalStateToSupabase() {
 }
 
 async function loadJournalsFromSupabase() {
-  if (!supabaseClient) return;
+  if (!supabaseClient || !currentUser) return;
   try {
     const { data, error } = await supabaseClient.from('journals').select('*');
     if (error) throw error;
@@ -295,7 +378,7 @@ async function loadJournalsFromSupabase() {
 }
 
 function setupJournalRealtime() {
-  if (!supabaseClient) return;
+  if (!supabaseClient || !currentUser) return;
   supabaseClient
     .channel('public:journals')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'journals' }, payload => {
@@ -1458,6 +1541,9 @@ function renderSettings() {
           </div>
           <span class="material-symbols-outlined ${typeof supabase !== 'undefined' ? 'text-secondary' : 'text-outline-variant'}">cloud_sync</span>
         </div>
+        <div class="flex justify-start mt-2">
+          <button class="px-4 py-2 border border-outline text-on-surface font-label-caps text-xs uppercase hover:bg-surface-container-low" onclick="handleLogout()">Log Out</button>
+        </div>
       </div>
 
       <!-- DATA -->
@@ -1677,8 +1763,4 @@ document.getElementById('settings-overlay').addEventListener('click', () => clos
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
 startHeaderTimer();
-loadJournalsFromSupabase().then(() => {
-  setupJournalRealtime();
-});
-
 renderView();
