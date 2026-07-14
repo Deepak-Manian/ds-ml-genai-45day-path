@@ -79,6 +79,7 @@ function getStartDate() {
 function setStartDate() {
   if (!getStartDate()) {
     try { localStorage.setItem(DAY_START_KEY, new Date().toISOString()); } catch(e) {}
+    saveGlobalStateToSupabase();
   }
 }
 function getDayCount() {
@@ -211,6 +212,7 @@ function loadState() {
 }
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+  saveGlobalStateToSupabase();
 }
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {} }
 function saveJournalState() {
@@ -227,6 +229,23 @@ if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
+async function saveGlobalStateToSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const payload = { checked, startDate: localStorage.getItem(DAY_START_KEY) };
+    const { data: existing, error: findErr } = await supabaseClient.from('journals').select('id').eq('title', 'global_state');
+    if (findErr) throw findErr;
+    
+    if (existing && existing.length > 0) {
+      await supabaseClient.from('journals').update({ content: JSON.stringify(payload) }).eq('id', existing[0].id);
+    } else {
+      await supabaseClient.from('journals').insert([{ title: 'global_state', content: JSON.stringify(payload) }]);
+    }
+  } catch (err) {
+    console.error('Failed to sync global state:', err);
+  }
+}
+
 async function loadJournalsFromSupabase() {
   if (!supabaseClient) return;
   try {
@@ -236,14 +255,26 @@ async function loadJournalsFromSupabase() {
     if (data) {
       let updated = false;
       for (const row of data) {
-        // We identify the day from the title
-        if (row.title && row.title.startsWith('Day ')) {
+        if (row.title === 'global_state') {
+          try {
+            const payload = JSON.parse(row.content);
+            if (payload.checked && JSON.stringify(payload.checked) !== JSON.stringify(checked)) {
+              checked = payload.checked;
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+              updated = true;
+            }
+            if (payload.startDate && payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
+              try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) {}
+              updated = true;
+            }
+          } catch(e) {}
+        }
+        else if (row.title && row.title.startsWith('Day ')) {
           const dayMatch = row.title.match(/Day (\d+)/);
           if (dayMatch && dayMatch[1]) {
             const dayNum = parseInt(dayMatch[1], 10);
             try {
               const entry = JSON.parse(row.content);
-              // Store real supabase ID so we can update it
               entry.id = row.id; 
               if (JSON.stringify(journalEntries[dayNum]) !== JSON.stringify(entry)) {
                 journalEntries[dayNum] = entry;
@@ -255,7 +286,7 @@ async function loadJournalsFromSupabase() {
       }
       if (updated) {
         try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
-        if (currentView === 'journal') renderView();
+        renderView();
       }
     }
   } catch (err) {
@@ -1213,6 +1244,7 @@ function renderJournalView() {
 
           <div class="flex justify-end pt-8 border-t border-outline-variant gap-4">
             <span id="save-status" class="self-center font-caption text-on-surface-variant italic text-sm"></span>
+            ${currentEntry.id || currentEntry.text || currentEntry.title ? `<button class="font-label-caps text-label-caps px-6 py-3 text-error hover:opacity-80 transition-opacity uppercase tracking-wider text-xs md:text-sm border border-error bg-transparent" onclick="deleteJournalEntry()">Delete Entry</button>` : ''}
             <button class="btn-primary font-label-caps text-label-caps px-6 py-3" onclick="saveJournalEntry()">Save Entry</button>
           </div>
         </div>
@@ -1319,10 +1351,39 @@ async function saveJournalEntry() {
   renderJournalView();
 }
 
+async function deleteJournalEntry() {
+  if (!confirm('Are you sure you want to delete this entry?')) return;
+  
+  const status = document.getElementById('save-status');
+  if (status) status.textContent = 'Deleting...';
+  
+  const oldEntry = journalEntries[journalSelectedDay] || {};
+  
+  if (supabaseClient && oldEntry.id) {
+    try {
+      const { error } = await supabaseClient.from('journals').delete().eq('id', oldEntry.id);
+      if (error) throw error;
+    } catch (err) {
+      console.error(err);
+      if (status) status.textContent = 'Error deleting from cloud.';
+      setTimeout(() => { if(status) status.textContent = ''; }, 3000);
+      return;
+    }
+  }
+  
+  delete journalEntries[journalSelectedDay];
+  saveJournalState();
+  
+  if (status) status.textContent = 'Deleted.';
+  setTimeout(() => { if(status) status.textContent = ''; }, 3000);
+  renderJournalView();
+}
+
 window.selectJournalDay = selectJournalDay;
 window.setJournalMood = setJournalMood;
 window.updateBtIcons = updateBtIcons;
 window.saveJournalEntry = saveJournalEntry;
+window.deleteJournalEntry = deleteJournalEntry;
 
 function openPanel(panelId, overlayId) {
   document.getElementById(panelId).classList.add('open');
