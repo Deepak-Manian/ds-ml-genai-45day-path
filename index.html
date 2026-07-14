@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>65-Day Lock In · Path of Mastery · Data Science / ML / AI</title>
+  <meta name="description" content="65-Day Lock In roadmap for mastering Data Science, Machine Learning, and AI. Track your progress across 139 skills from Python to GenAI." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" size="32x32" href="./Gojo.png">
+</head>
+<body>
+
+  <!-- WebGL Shader Background -->
+  <div id="shader-bg">
+    <canvas id="shader-canvas"></canvas>
+  </div>
+
+  <!-- Sticky Header -->
+  <header class="site-header glass-header">
+    <div class="header-inner">
+      <span class="header-brand">PATH OF MASTERY</span>
+      <!-- Desktop Nav -->
+      <nav class="header-nav" id="header-nav">
+        <a href="#" class="active">Phases</a>
+        <a href="#">Roadmap</a>
+        <a href="#">Stats</a>
+        <a href="#">Archive</a>
+      </nav>
+      <div class="header-right">
+        <div class="day-badge">
+          <span class="day-text" id="day-counter">DAY 24/65</span>
+          <div class="lock-dot"></div>
+          <span class="lock-text">LOCK IN</span>
+        </div>
+        <button class="header-icon-btn" aria-label="Notifications">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="header-icon-btn" aria-label="Settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+        <div class="header-avatar">
+          <img src="./Gojo.png" alt="Gojo Mascot Avatar" />
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <!-- Motivation popup -->
+  <div class="motivation-overlay" id="motivation-overlay">
+    <div class="motivation-card" id="motivation-card">
+      <div class="motivation-card-top">
+        <span class="motivation-element-symbol">完</span>
+        <div class="motivation-skill-name">Skill Conquered</div>
+        <div class="motivation-divider"></div>
+        <div class="motivation-quote">"The struggle itself is enough to fill a man's heart."</div>
+        <div class="motivation-quote-author">— Albert Camus</div>
+      </div>
+      <div class="motivation-card-bottom">
+        <span class="motivation-progress-note">Keep pushing.</span>
+        <button class="motivation-close" onclick="closeMotivation()">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <p class="footer-text">65 days to mastery · Progress saved to your device · Zero excuses</p>
+      <div class="footer-divider"></div>
+      <p class="footer-sub">Relentless effort is the only path to success</p>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
