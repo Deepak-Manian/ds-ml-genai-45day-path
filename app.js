@@ -1625,8 +1625,9 @@ function renderSettings() {
         const data = JSON.parse(ev.target.result);
         if (data.checked && typeof data.checked === 'object') {
           if (confirm('Import will replace your current progress. Continue?')) {
-            checked = data.checked; saveState();
+            checked = data.checked;
             if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch(e) {} }
+            saveState();
             closePanel('settings-panel', 'settings-overlay');
             renderView();
           }
@@ -1638,8 +1639,9 @@ function renderSettings() {
 
   document.getElementById('btn-reset').addEventListener('click', function() {
     if (confirm('⚠️ Reset ALL progress? This cannot be undone.')) {
-      checked = {}; saveState();
+      checked = {};
       try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+      saveState();
       closePanel('settings-panel', 'settings-overlay');
       renderView();
     }
