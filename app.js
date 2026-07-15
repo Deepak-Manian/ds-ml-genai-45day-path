@@ -1905,6 +1905,12 @@ function switchView(view) {
 }
 
 function renderView() {
+  // Re-trigger the fadeInUp animation on every view switch
+  const main = document.getElementById('main');
+  main.style.animation = 'none';
+  main.offsetHeight; // force reflow
+  main.style.animation = '';
+
   switch (currentView) {
     case 'phases':  renderPhasesView();  break;
     case 'roadmap': renderRoadmapView(); break;
@@ -1915,6 +1921,32 @@ function renderView() {
     case 'beta':    renderBetaView();    break;
   }
   updateDayBadge();
+  initScrollReveal();
+}
+
+// ─── Scroll Reveal Observer ──────────────────────────────────────
+let revealObserver = null;
+function initScrollReveal() {
+  // Tag all skill cards and major sections as reveal targets
+  document.querySelectorAll('.skill-card, .conquest-card, .book-shelf-container, .ticket-stub').forEach(el => {
+    if (!el.classList.contains('reveal')) {
+      el.classList.add('reveal');
+    }
+  });
+
+  if (revealObserver) revealObserver.disconnect();
+  revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal:not(.visible)').forEach(el => {
+    revealObserver.observe(el);
+  });
 }
 
 // ─── Filter + search bindings ────────────────────────────────────

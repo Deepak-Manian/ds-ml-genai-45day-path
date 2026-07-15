@@ -1,14 +1,220 @@
 /* Zen Architect Custom Styles & Functional Classes */
 
+/* ═══════════════════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes barGrow {
+  from { width: 0%; }
+}
+
+@keyframes countPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes gentleBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@keyframes ticketReveal {
+  from { opacity: 0; transform: translateY(20px) rotate(-1deg); }
+  to   { opacity: 1; transform: translateY(0) rotate(0); }
+}
+
+@keyframes shelfSlideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLL REVEAL SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger delays for child elements */
+.reveal-stagger > .reveal:nth-child(1)  { transition-delay: 0ms; }
+.reveal-stagger > .reveal:nth-child(2)  { transition-delay: 80ms; }
+.reveal-stagger > .reveal:nth-child(3)  { transition-delay: 160ms; }
+.reveal-stagger > .reveal:nth-child(4)  { transition-delay: 240ms; }
+.reveal-stagger > .reveal:nth-child(5)  { transition-delay: 320ms; }
+.reveal-stagger > .reveal:nth-child(6)  { transition-delay: 400ms; }
+.reveal-stagger > .reveal:nth-child(7)  { transition-delay: 480ms; }
+.reveal-stagger > .reveal:nth-child(8)  { transition-delay: 560ms; }
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEW TRANSITION
+   ═══════════════════════════════════════════════════════════════ */
+#main {
+  animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE STYLES (enhanced)
+   ═══════════════════════════════════════════════════════════════ */
 .hairline-border { border: 1px solid #E5E5E5; }
 .progress-bar-bg { background-color: #e2e2e2; }
-.progress-bar-fill { background-color: #735c00; }
-.btn-primary { background-color: #000; color: #fff; padding: 12px 24px; font-weight: 500; transition: background-color 0.2s; }
-.btn-primary:hover { background-color: #1a1a1a; }
-.btn-secondary { border: 1px solid #000; color: #000; padding: 12px 24px; font-weight: 500; transition: background-color 0.2s; }
-.btn-secondary:hover { background-color: #f2f2f2; }
-.card { background: #fff; border: 1px solid #E5E5E5; padding: 32px; border-radius: 0; }
-.card-hover:hover { background-color: #F2F2F2; transition: background-color 0.3s ease; cursor: pointer; }
+.progress-bar-fill {
+  background-color: #735c00;
+  animation: barGrow 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.btn-primary {
+  background-color: #000; color: #fff; padding: 12px 24px; font-weight: 500;
+  transition: background-color 0.2s, transform 0.15s ease, box-shadow 0.2s ease;
+}
+.btn-primary:hover { background-color: #1a1a1a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.btn-primary:active { transform: translateY(0); box-shadow: none; }
+.btn-secondary {
+  border: 1px solid #000; color: #000; padding: 12px 24px; font-weight: 500;
+  transition: background-color 0.2s, transform 0.15s ease;
+}
+.btn-secondary:hover { background-color: #f2f2f2; transform: translateY(-1px); }
+.btn-secondary:active { transform: translateY(0); }
+.card {
+  background: #fff; border: 1px solid #E5E5E5; padding: 32px; border-radius: 0;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.25s ease;
+}
+.card-hover:hover {
+  background-color: #F8F8F8;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  border-color: #D0D0D0;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SKILL CARD ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+.skill-card {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.3s ease,
+              border-color 0.3s ease;
+}
+
+.skill-card .skill-status {
+  transition: transform 0.2s ease;
+}
+.skill-card .skill-status:hover {
+  transform: scale(1.2);
+}
+
+/* Checkbox tick animation */
+.skill-check-icon {
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NAV LINK HOVER
+   ═══════════════════════════════════════════════════════════════ */
+#header-nav a, #mobile-header-nav a {
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.15s ease;
+  position: relative;
+}
+
+#header-nav a::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: #735c00;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#header-nav a:hover::after,
+#header-nav a.active::after {
+  width: 100%;
+  left: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FILTER BUTTON ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+.filter-btn {
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.filter-btn:active {
+  transform: scale(0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOTIVATION POPUP ANIMATION
+   ═══════════════════════════════════════════════════════════════ */
+#motivation-overlay {
+  transition: opacity 0.35s ease !important;
+}
+#motivation-overlay .card {
+  animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SLIDE PANEL ANIMATION
+   ═══════════════════════════════════════════════════════════════ */
+.slide-panel {
+  transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.panel-overlay {
+  transition: opacity 0.3s ease !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TICKER / DAY COUNTER PULSE
+   ═══════════════════════════════════════════════════════════════ */
+#day-counter {
+  transition: color 0.3s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SECTION CHEVRON ROTATION
+   ═══════════════════════════════════════════════════════════════ */
+.skills-grid {
+  transition: max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
 
 /* Functional Overrides */
 .slide-panel {
@@ -100,6 +306,7 @@
   position: relative;
   display: flex;
   overflow: hidden;
+  animation: ticketReveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ticket-stub::before {
