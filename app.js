@@ -963,6 +963,187 @@ function renderTimerView() {
   main.innerHTML = html;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// VIEW: BETA (UpNext-style Stubs dashboard)
+// ═══════════════════════════════════════════════════════════════════
+
+const SPINE_COLORS = [
+  '#1a1a2e', '#16213e', '#0f3460', '#533483',
+  '#2c3e50', '#34495e', '#1B4332', '#2D6A4F',
+  '#7B2D26', '#6B3FA0', '#3D405B', '#264653',
+  '#2B2D42', '#4A4E69', '#6D6875', '#1D3557',
+  '#3A0CA3', '#4361EE'
+];
+
+function generateBarcode() {
+  const bars = [];
+  for (let i = 0; i < 28; i++) {
+    const h = 12 + Math.floor(Math.random() * 24);
+    const w = Math.random() > 0.6 ? 3 : 2;
+    bars.push(`<span class="bar" style="height:${h}px;width:${w}px"></span>`);
+  }
+  return bars.join('');
+}
+
+function renderBetaView() {
+  const main = document.getElementById('main');
+  const { done, total } = getGlobalStats();
+  const start = getStartDate();
+  const elapsed = getDetailedElapsedTime();
+
+  // Find current section (first incomplete)
+  let currentSection = null;
+  let currentSkill = null;
+  for (const sec of SECTIONS) {
+    const incomplete = sec.skills.find(s => !checked[s.id]);
+    if (incomplete) {
+      currentSection = sec;
+      currentSkill = incomplete;
+      break;
+    }
+  }
+
+  // Completed sections
+  const completedSections = SECTIONS.filter(sec =>
+    sec.skills.every(s => checked[s.id])
+  );
+
+  // Top conquests: sections sorted by completion % (descending), top 4
+  const sectionStats = SECTIONS.map(sec => {
+    const d = sec.skills.filter(s => checked[s.id]).length;
+    const t = sec.skills.length;
+    return { sec, done: d, total: t, pct: t > 0 ? Math.round((d / t) * 100) : 0 };
+  }).filter(s => s.done > 0).sort((a, b) => b.pct - a.pct).slice(0, 4);
+
+  // Day info
+  const dayNum = elapsed ? elapsed.days + 1 : 0;
+  const timeStr = elapsed ? `${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m` : '—';
+  const ticketNumber = String(dayNum).padStart(6, '0');
+
+  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-12">
+    <div class="flex items-center justify-between">
+      <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4 flex-1">Stubs</h1>
+      <span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase text-xs">BETA</span>
+    </div>`;
+
+  // ──── TICKET STUB ────
+  if (currentSection && start) {
+    const secDone = currentSection.skills.filter(s => checked[s.id]).length;
+    const secTotal = currentSection.skills.length;
+    const skillName = currentSkill.name.split('—')[0].trim();
+    const sectionName = currentSection.title.split('—')[0].trim();
+
+    html += `
+    <div class="ticket-stub">
+      <div class="ticket-stub-left">
+        <span class="ticket-brand">🔒 ZEN MASTERY</span>
+        <div class="ticket-title">${sectionName}</div>
+        <div class="ticket-meta">
+          Up Next: ${skillName}<br/>
+          Day ${dayNum} · ${timeStr} elapsed · ${secDone}/${secTotal} in section
+        </div>
+      </div>
+      <div class="ticket-stub-right">
+        <span class="ticket-admit">ADMIT ONE</span>
+        <div>
+          <div class="ticket-barcode">${generateBarcode()}</div>
+          <span class="ticket-number">NO. ${ticketNumber}</span>
+        </div>
+      </div>
+    </div>`;
+  } else if (!start) {
+    html += `
+    <div class="ticket-stub" style="opacity:0.5">
+      <div class="ticket-stub-left">
+        <span class="ticket-brand">🔒 ZEN MASTERY</span>
+        <div class="ticket-title">Not Started</div>
+        <div class="ticket-meta">Begin your lock-in to receive your first ticket.</div>
+      </div>
+      <div class="ticket-stub-right">
+        <span class="ticket-admit">ADMIT ONE</span>
+        <div>
+          <div class="ticket-barcode">${generateBarcode()}</div>
+          <span class="ticket-number">NO. 000000</span>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    // All sections complete
+    html += `
+    <div class="ticket-stub">
+      <div class="ticket-stub-left">
+        <span class="ticket-brand">🔒 ZEN MASTERY</span>
+        <div class="ticket-title">ALL CONQUERED</div>
+        <div class="ticket-meta">Every single skill has been mastered. You are an Elite Practitioner.</div>
+      </div>
+      <div class="ticket-stub-right">
+        <span class="ticket-admit">GRADUATED</span>
+        <div>
+          <div class="ticket-barcode">${generateBarcode()}</div>
+          <span class="ticket-number">NO. ${ticketNumber}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ──── KNOWLEDGE SHELF ────
+  html += `
+    <div>
+      <h2 class="font-headline-md text-headline-md text-primary mb-2">Shelf</h2>
+      <p class="font-body-md text-on-surface-variant mb-6">${completedSections.length} finished section${completedSections.length !== 1 ? 's' : ''}</p>
+      <div class="book-shelf-container">
+        <div class="book-shelf">`;
+
+  if (completedSections.length === 0) {
+    // Show placeholder empty spines
+    for (let i = 0; i < 6; i++) {
+      const h = 160 + Math.floor(Math.random() * 60);
+      html += `<div class="book-spine book-spine-empty" style="height:${h}px">· · ·</div>`;
+    }
+  } else {
+    completedSections.forEach((sec, i) => {
+      const color = SPINE_COLORS[i % SPINE_COLORS.length];
+      const h = 180 + Math.floor(Math.random() * 50);
+      const label = sec.title.split('—')[0].split('·')[0].trim();
+      html += `<div class="book-spine" style="background:${color};height:${h}px" title="${sec.title}">${label}</div>`;
+    });
+  }
+
+  html += `
+        </div>
+        <div class="book-shelf-line"></div>
+      </div>
+    </div>`;
+
+  // ──── TOP CONQUESTS ────
+  if (sectionStats.length > 0) {
+    html += `
+    <div>
+      <h2 class="font-headline-md text-headline-md text-primary mb-2">Top ${Math.min(sectionStats.length, 4)}</h2>
+      <p class="font-body-md text-on-surface-variant mb-6">Your strongest areas</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+    sectionStats.forEach((s, i) => {
+      const icon = SECTION_ICONS[s.sec.id] || 'school';
+      const label = s.sec.title.split('—')[0].trim();
+      html += `
+        <div class="conquest-card">
+          <span class="material-symbols-outlined text-3xl ${s.pct === 100 ? 'text-secondary' : 'text-on-surface-variant'}" style="font-variation-settings: 'FILL' ${s.pct === 100 ? 1 : 0}">${icon}</span>
+          <div class="flex-1">
+            <div class="font-body-md text-primary font-medium">${label}</div>
+            <div class="font-caption text-on-surface-variant text-sm">${s.done}/${s.total} conquered · ${s.pct}%</div>
+          </div>
+          ${s.pct === 100 ? '<span class="material-symbols-outlined text-secondary" style="font-variation-settings:\'FILL\' 1">verified</span>' : ''}
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  }
+
+  html += `</div>`;
+  main.innerHTML = html;
+}
+
 const FLASHCARDS = [
   {
     id: "fc_01",
@@ -1731,6 +1912,7 @@ function renderView() {
     case 'timer':   renderTimerView();   break;
     case 'resources': renderResourcesView(); break;
     case 'journal': renderJournalView(); break;
+    case 'beta':    renderBetaView();    break;
   }
   updateDayBadge();
 }

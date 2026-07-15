@@ -90,3 +90,229 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   BETA PAGE — Ticket Stub
+   ═══════════════════════════════════════════════════════════════ */
+.ticket-stub {
+  background: #FDF6E3;
+  border: 1px solid #D4C5A0;
+  position: relative;
+  display: flex;
+  overflow: hidden;
+}
+
+.ticket-stub::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 0;
+  border-left: 3px dashed #D4C5A0;
+  margin-left: 20px;
+}
+
+.ticket-stub-left {
+  flex: 1;
+  padding: 32px 32px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ticket-stub-right {
+  width: 160px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-left: 2px dashed #D4C5A0;
+  position: relative;
+}
+
+.ticket-stub-right::before,
+.ticket-stub-right::after {
+  content: '';
+  position: absolute;
+  left: -10px;
+  width: 20px;
+  height: 20px;
+  background: #FAFAFA;
+  border-radius: 50%;
+}
+.ticket-stub-right::before { top: -10px; }
+.ticket-stub-right::after { bottom: -10px; }
+
+.ticket-brand {
+  font-family: 'Geist', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #735c00;
+}
+
+.ticket-title {
+  font-family: 'Geist', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.1;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
+}
+
+.ticket-meta {
+  font-family: 'Geist', sans-serif;
+  font-size: 13px;
+  color: #6B5A3E;
+  line-height: 1.6;
+}
+
+.ticket-admit {
+  font-family: 'Geist', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #1a1a1a;
+}
+
+.ticket-number {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: #6B5A3E;
+}
+
+/* Barcode visual */
+.ticket-barcode {
+  display: flex;
+  gap: 1.5px;
+  align-items: flex-end;
+  height: 36px;
+}
+.ticket-barcode .bar {
+  width: 2px;
+  background: #1a1a1a;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BETA PAGE — Book Shelf
+   ═══════════════════════════════════════════════════════════════ */
+.book-shelf-container {
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.book-shelf {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0 8px 0 8px;
+  min-height: 240px;
+  position: relative;
+}
+
+.book-shelf-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: linear-gradient(to bottom, #C4B899, #A89570);
+  border-radius: 0 0 2px 2px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.book-spine {
+  width: 52px;
+  min-width: 52px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: 'Geist', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fff;
+  cursor: default;
+  position: relative;
+  border-radius: 3px 3px 0 0;
+  box-shadow: 2px 0 4px rgba(0,0,0,0.1), inset -2px 0 4px rgba(0,0,0,0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-origin: bottom center;
+  z-index: 1;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  padding: 16px 4px;
+}
+
+.book-spine:hover {
+  transform: translateY(-8px) rotate(-2deg);
+  box-shadow: 4px 4px 12px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+.book-spine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.15));
+}
+
+.book-spine-empty {
+  background: #E5E5E5 !important;
+  color: #aaa !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.book-spine-empty:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BETA PAGE — Top Conquests
+   ═══════════════════════════════════════════════════════════════ */
+.conquest-card {
+  border: 1px solid #E5E5E5;
+  background: #fff;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: background 0.2s;
+}
+.conquest-card:hover {
+  background: #F8F8F8;
+}
+
+@media (max-width: 768px) {
+  .ticket-stub { flex-direction: column; }
+  .ticket-stub-right {
+    width: 100%;
+    border-left: none;
+    border-top: 2px dashed #D4C5A0;
+    flex-direction: row;
+    padding: 16px 24px;
+  }
+  .ticket-stub-right::before,
+  .ticket-stub-right::after { display: none; }
+  .ticket-stub::before { display: none; }
+  .ticket-stub-left { padding: 24px; }
+
+  .book-spine {
+    width: 40px;
+    min-width: 40px;
+    height: 180px;
+    font-size: 9px;
+  }
+}
