@@ -914,7 +914,10 @@ function renderTimerView() {
   let feedback = '';
   let feedbackColor = '';
   
-  if (diff > 0) {
+  if (done === 0 && daysElapsed < 1) {
+    feedback = `<strong>The clock is ticking.</strong> You just began your 65-day lock-in. To stay on track, you need to conquer at least ${Math.ceil(paceTarget)} skills today. Time to get to work.`;
+    feedbackColor = 'text-primary';
+  } else if (diff > 0) {
     const daysEarly = Math.max(0, targetDays - projectedDays);
     feedback = `<strong>Ahead of schedule!</strong> You are crushing it. You've conquered ${diff} more skill(s) than expected today. If you maintain this pace, you will finish <strong>${daysEarly.toFixed(1)} days early</strong>. Outstanding discipline.`;
     feedbackColor = 'text-secondary';
