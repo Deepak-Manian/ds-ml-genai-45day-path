@@ -879,41 +879,84 @@ function renderStatsView() {
   main.innerHTML = html;
 }
 
-function renderArchiveView() {
+function renderTimerView() {
   const main = document.getElementById('main');
-  const { done, total, pct } = getGlobalStats();
-
+  const { done, total } = getGlobalStats();
+  
+  const start = getStartDate();
   let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
-    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Archive</h1>
-    <p class="font-body-md text-on-surface-variant">Your conquered skills — ${done} / ${total} skills conquered (${pct}%)</p>
-    <div class="flex flex-col gap-unit mt-4">`;
+    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Smart Timer</h1>`;
 
-  if (done === 0) {
-    html += `<div class="p-8 text-center text-on-surface-variant">No skills conquered yet. Start your journey in the Phases tab.</div>`;
-  } else {
-    SECTIONS.forEach(sec => {
-      const doneSkills = sec.skills.filter(s => checked[s.id]);
-      if (doneSkills.length === 0) return;
-      
-      html += `<div class="card flex flex-col gap-4">
-        <h4 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-2 flex justify-between">
-          <span>${sec.title}</span>
-          <span class="text-on-surface-variant text-sm">${doneSkills.length}/${sec.skills.length}</span>
-        </h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">`;
-
-      doneSkills.forEach(skill => {
-        html += `<div class="flex items-center gap-3 text-on-surface-variant">
-          <span class="material-symbols-outlined text-secondary" style="font-variation-settings:'FILL' 1;">check_circle</span>
-          <span class="font-body-md text-sm">${skill.name.split('—')[0].trim()}</span>
-        </div>`;
-      });
-
-      html += `</div></div>`;
-    });
+  if (!start) {
+    html += `<div class="p-16 text-center text-on-surface-variant flex flex-col items-center gap-6">
+      <span class="material-symbols-outlined text-6xl text-outline-variant">timer</span>
+      <p class="font-body-lg text-xl">Your 65-day journey has not started yet.</p>
+      <button class="bg-primary text-white hover:opacity-90 px-8 py-4 font-label-caps tracking-widest text-sm uppercase transition-opacity mt-4" onclick="startJourney()">BEGIN LOCK-IN</button>
+    </div></div>`;
+    main.innerHTML = html;
+    return;
   }
 
-  html += '</div></div>';
+  const msElapsed = new Date() - start;
+  const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
+  const targetDays = 65;
+  const paceTarget = total / targetDays; // ~2.13 skills/day
+  
+  const expectedSkillsRaw = daysElapsed * paceTarget;
+  const expectedSkills = Math.min(Math.floor(expectedSkillsRaw), total);
+  const currentPace = daysElapsed > 0.1 ? (done / daysElapsed) : 0;
+  
+  let projectedDays = 0;
+  if (currentPace > 0) projectedDays = total / currentPace;
+  
+  const diff = done - expectedSkills;
+  
+  let feedback = '';
+  let feedbackColor = '';
+  
+  if (diff > 0) {
+    const daysEarly = Math.max(0, targetDays - projectedDays);
+    feedback = `<strong>Ahead of schedule!</strong> You are crushing it. You've conquered ${diff} more skill(s) than expected today. If you maintain this pace, you will finish <strong>${daysEarly.toFixed(1)} days early</strong>. Outstanding discipline.`;
+    feedbackColor = 'text-secondary';
+  } else if (diff < 0) {
+    feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
+    feedbackColor = 'text-error';
+  } else {
+    feedback = `<strong>Perfectly on track.</strong> You are exactly where you need to be. Maintain this consistency.`;
+    feedbackColor = 'text-primary';
+  }
+
+  const expectedPct = Math.min(100, Math.round((expectedSkills / total) * 100));
+  const actualPct = Math.min(100, Math.round((done / total) * 100));
+
+  html += `
+    <div class="card flex flex-col gap-6 p-8 bg-surface-bright border border-outline-variant">
+      <p class="font-body-lg ${feedbackColor} text-lg md:text-xl leading-relaxed">${feedback}</p>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+      <!-- Expected Mastery -->
+      <div class="card flex flex-col gap-4 p-8 border border-outline-variant relative overflow-hidden bg-surface-container-low">
+        <h3 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase mb-2">EXPECTED MASTERY</h3>
+        <span class="font-display text-5xl text-on-surface-variant">${expectedSkills} <span class="text-2xl text-outline-variant">/ ${total}</span></span>
+        <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.max(1, Math.floor(daysElapsed))}</span>
+        <div class="w-full h-[4px] bg-surface-container relative mt-4">
+          <div class="absolute top-0 left-0 h-full bg-outline-variant transition-all duration-1000" style="width:${expectedPct}%"></div>
+        </div>
+      </div>
+      
+      <!-- Actual Mastery -->
+      <div class="card flex flex-col gap-4 p-8 border ${diff >= 0 ? 'border-secondary' : 'border-error'} relative overflow-hidden bg-white">
+        <h3 class="font-label-caps text-label-caps ${diff >= 0 ? 'text-secondary' : 'text-error'} tracking-widest uppercase mb-2">ACTUAL MASTERY</h3>
+        <span class="font-display text-5xl ${diff >= 0 ? 'text-primary' : 'text-error'}">${done} <span class="text-2xl text-on-surface-variant opacity-60">/ ${total}</span></span>
+        <span class="font-caption text-sm text-on-surface-variant">Skills you actually have right now</span>
+        <div class="w-full h-[4px] bg-surface-container relative mt-4">
+          <div class="absolute top-0 left-0 h-full ${diff >= 0 ? 'bg-secondary' : 'bg-error'} transition-all duration-1000" style="width:${actualPct}%"></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  
   main.innerHTML = html;
 }
 
@@ -1682,7 +1725,7 @@ function renderView() {
     case 'phases':  renderPhasesView();  break;
     case 'roadmap': renderRoadmapView(); break;
     case 'stats':   renderStatsView();   break;
-    case 'archive': renderArchiveView(); break;
+    case 'timer':   renderTimerView();   break;
     case 'resources': renderResourcesView(); break;
     case 'journal': renderJournalView(); break;
   }
