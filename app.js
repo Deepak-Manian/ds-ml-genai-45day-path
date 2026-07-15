@@ -346,9 +346,14 @@ async function loadJournalsFromSupabase() {
               try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
               updated = true;
             }
-            if (payload.startDate && payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
-              try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) {}
-              updated = true;
+            if (payload.startDate !== undefined) {
+              if (payload.startDate === null) {
+                try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+                updated = true;
+              } else if (payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
+                try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) {}
+                updated = true;
+              }
             }
           } catch(e) {}
         }
@@ -441,7 +446,6 @@ function toggleSkill(skillId) {
   const wasDone = !!checked[skillId];
   checked[skillId] = !wasDone;
   saveState();
-  if (!wasDone) setStartDate();
 
   const card = document.querySelector('.skill-card[data-skill-id="'+skillId+'"]');
   if (card) {
@@ -616,12 +620,13 @@ function renderHero() {
   return `
   <div class="col-span-1 md:col-span-12 flex flex-col gap-section-gap">
     <section class="flex flex-col gap-unit">
-      <div class="flex items-center gap-4 mb-4">
-        <img alt="Gojo Mascot" class="w-16 h-16 rounded-full object-cover border border-outline-variant grayscale" src="./Gojo.png"/>
+      <div class="flex items-center flex-wrap gap-4 mb-4">
+        <img alt="Gojo Mascot" class="w-16 h-16 rounded-full object-cover grayscale" src="./Gojo.png"/>
         <div>
           <h1 class="font-headline-lg text-headline-lg md:font-display md:text-display text-primary">${dayStr}</h1>
           <p class="font-body-md text-body-md text-on-surface-variant mt-2">Rank: ${rank.name.toUpperCase()} • Global Progress</p>
         </div>
+        ${day === 0 ? `<button class="ml-auto bg-primary text-white hover:opacity-90 px-6 py-3 font-label-caps tracking-widest text-sm uppercase transition-opacity" onclick="startJourney()">BEGIN LOCK-IN</button>` : ''}
       </div>
       <div class="card flex flex-col gap-6 p-8 border border-outline-variant bg-surface-bright">
         <div class="flex justify-between items-start">
@@ -648,7 +653,7 @@ function renderHero() {
         </div>
         <div class="relative w-full mt-2">
           <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-          <input class="search-input" type="text" placeholder="Search curriculum..." id="search-input" />
+          <input class="search-input pl-10" type="text" placeholder="Search curriculum..." id="search-input" />
         </div>
       </div>
     </section>
@@ -1761,6 +1766,14 @@ document.getElementById('settings-btn').addEventListener('click', function() {
 });
 document.getElementById('settings-close').addEventListener('click', () => closePanel('settings-panel', 'settings-overlay'));
 document.getElementById('settings-overlay').addEventListener('click', () => closePanel('settings-panel', 'settings-overlay'));
+
+function startJourney() {
+  if (confirm('Ready to lock in for the next 65 days?')) {
+    setStartDate();
+    renderView();
+  }
+}
+window.startJourney = startJourney;
 
 // ─── Init ─────────────────────────────────────────────────────────
 loadState();
