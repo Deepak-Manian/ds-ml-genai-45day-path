@@ -604,7 +604,7 @@ function renderSection(sec, isExpanded) {
         <span class="material-symbols-outlined text-outline-variant transition-transform duration-300 ${chevCollapsed}" id="chev-${sec.id}">expand_more</span>
       </div>
     </div>
-    <div class="w-full h-[2px] progress-bar-bg relative -top-4">
+    <div class="w-full progress-bar-bg relative -top-4">
       <div class="absolute top-0 left-0 h-full progress-bar-fill" id="phase-bar-${sec.id}" style="width:${pct}%"></div>
     </div>
     <div class="grid-cols-1 md:grid-cols-2 gap-unit skills-grid ${collapsedClass}" id="grid-${sec.id}">${cardsHTML}</div>`;
@@ -637,7 +637,7 @@ function renderHero() {
           <span class="font-display text-display text-surface-container-highest" id="ring-pct">${pct}%</span>
         </div>
         <div class="w-full mt-4">
-          <div class="w-full h-[2px] progress-bar-bg relative">
+          <div class="w-full progress-bar-bg relative">
             <div class="absolute top-0 left-0 h-full progress-bar-fill" id="global-bar" style="width:${pct}%"></div>
           </div>
         </div>
@@ -736,7 +736,7 @@ function renderRoadmapView() {
           ${done}/${total} skills conquered (${pct}%)
         </p>
         <div class="w-full mt-2">
-          <div class="w-full h-[2px] progress-bar-bg relative">
+          <div class="w-full progress-bar-bg relative">
             <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
           </div>
         </div>
@@ -842,7 +842,7 @@ function renderStatsView() {
           </div>
           <span class="font-caption text-caption text-on-surface-variant">Skills Acquired</span>
         </div>
-        <div class="w-full h-[2px] progress-bar-bg relative">
+        <div class="w-full progress-bar-bg relative">
           <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${pct}%"></div>
         </div>
         <div class="flex flex-col gap-4 mt-4 text-sm font-body-md">
@@ -918,8 +918,12 @@ function renderTimerView() {
     feedback = `<strong>The clock is ticking.</strong> You just began your 65-day lock-in. To stay on track, you need to conquer at least ${Math.ceil(paceTarget)} skills today. Time to get to work.`;
     feedbackColor = 'text-primary';
   } else if (diff > 0) {
-    const daysEarly = Math.max(0, targetDays - projectedDays);
-    feedback = `<strong>Ahead of schedule!</strong> You are crushing it. You've conquered ${diff} more skill(s) than expected today. If you maintain this pace, you will finish <strong>${daysEarly.toFixed(1)} days early</strong>. Outstanding discipline.`;
+    if (daysElapsed < 1) {
+      feedback = `<strong>Great start!</strong> You've already conquered ${done} skill(s) on Day 1. The baseline is ${Math.ceil(paceTarget)} skills per day. Keep building this early momentum.`;
+    } else {
+      const daysEarly = Math.max(0, targetDays - projectedDays);
+      feedback = `<strong>Ahead of schedule!</strong> You are crushing it. You've conquered ${diff} more skill(s) than expected. If you maintain this pace, you will finish <strong>${daysEarly.toFixed(1)} days early</strong>. Outstanding discipline.`;
+    }
     feedbackColor = 'text-secondary';
   } else if (diff < 0) {
     feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
