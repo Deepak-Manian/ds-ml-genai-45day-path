@@ -1941,8 +1941,9 @@ function bindFilterEvents() {
   if (resetBtn) {
     resetBtn.addEventListener('click', function() {
       if (confirm('Reset all progress? This cannot be undone.')) {
-        checked = {}; saveState();
+        checked = {};
         try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+        saveState();
         renderView();
       }
     });
