@@ -1,66 +1,68 @@
-# 45-Day Lock In · Data Science & ML Mastery
+# ZEN MASTERY · 65-Day Lock-In
 
-A 45-day **personal mastery path** to go from foundations to practical Data Science, Machine Learning, Deep Learning, and GenAI — with a focus on skills that show up in real interviews and real projects.
+A personal, 65-day mastery path for Data Science, Machine Learning, Deep Learning, and Generative AI — built as a fully interactive web dashboard with real-time cloud sync.
+
+**Live Site:** [lock-in-deepak.pages.dev](https://lock-in-deepak.pages.dev)
 
 ---
 
-## What this is
+## What This Is
 
-- A structured 4-phase roadmap: Foundations → Core ML → Deep Learning & GenAI → Deploy & Ship.
-- 106 bite-sized skills grouped by topic, each with free resources you can plug in.
-- Designed as a solo "lock-in" grind — track daily progress from Day 1 to Day 45.
+- A structured **139-skill curriculum** spread across 18 sections and 4 phases.
+- A fully functional **web dashboard** with progress tracking, journals, statistics, and a smart timer.
+- Password-protected with **Supabase Authentication** — your progress is safe and synced to the cloud in real-time.
+- Designed as a solo "lock-in" grind — track daily progress from Day 1 to Day 65.
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **Phases View** | Browse all 139 skills organized into collapsible sections with checkboxes, resource links, and progress bars. |
+| **Roadmap View** | A visual timeline showing all sections as alternating cards with progress indicators. |
+| **Stats Dashboard** | Journey timer, study pace, projected completion date, rank ladder, and section-by-section breakdown. |
+| **Smart Timer** | Calculates where you *should* be vs where you *actually* are against the 65-day deadline. Motivates or reality-checks you accordingly. |
+| **Resources** | Flashcard deck for quick revision and a "Daily Neuron" knowledge feed. |
+| **Journal** | Per-day journaling with autosave. Write about what you learned, what clicked, and what you struggled with. Entries sync to Supabase in real-time. |
+| **Beta (Stubs)** | An experimental UpNext-style page with a ticket stub for your current section, a book shelf of completed sections, and top conquest cards. |
+| **Cloud Sync** | All progress (checked skills, start date, journals) syncs to Supabase in real-time. Open in two tabs — changes appear instantly. |
+| **Authentication** | Email/password login via Supabase Auth. Row Level Security ensures only you can access your data. |
 
 ---
 
 ## Phases
 
 ### Phase 1 · Foundations (Days 1–10)
-
-- **Python for Data Science** — NumPy, Pandas, Matplotlib/Seaborn, Plotly, Pythonic patterns, OOP, virtualenvs, Jupyter discipline.
-- **SQL & Databases** — Core SELECT/JOINs, window functions, CTEs, aggregations, basic optimisation, NoSQL awareness.
-- **Statistics & Probability** — descriptive stats, distributions, CLT, hypothesis testing, p-values, power, A/B testing, Bayesian basics.
-- **Math for ML** — linear algebra (vectors, matrices, eigenvalues) and calculus for optimisation and backprop intuition.
+Python Fundamentals, Python for Data Science (NumPy, Pandas, Matplotlib), SQL & Databases, Statistics & Probability, Math for ML.
 
 ### Phase 2 · Core ML (Days 11–22)
+Data Wrangling & EDA, Core ML Algorithms (regression, trees, boosting, SVM, clustering), Evaluation & Tuning, sklearn Pipelines, Time Series.
 
-- **Data Wrangling & EDA** — missing values, outliers, feature engineering, scaling, encoding, correlation analysis.
-- **Core ML Algorithms** — linear/logistic regression, trees, RF, boosting (XGBoost/LightGBM/CatBoost), SVM, k-NN, Naive Bayes, clustering, PCA/t-SNE/UMAP.
-- **Evaluation & Tuning** — bias-variance, cross-validation, metrics, class imbalance handling, hyperparameter tuning, sklearn Pipelines, recommenders, time series.
+### Phase 3 · Deep Learning, NLP, CV, GenAI (Days 23–50)
+Neural Networks & Backprop, CNNs, RNN/LSTM, Transformers, PyTorch, NLP (HuggingFace, NER, Semantic Search), Computer Vision, Generative AI & LLMs (RAG, LoRA, LangChain, AI Agents, Diffusion Models).
 
-### Phase 3 · Deep Learning, NLP, CV, GenAI (Days 23–38)
-
-- **Deep Learning** — NN basics, backprop, optimisers, regularisation, CNNs, RNN/LSTM/GRU, transformers, PyTorch, transfer learning, schedulers, mixed precision.
-- **NLP** — classic preprocessing, TF-IDF, embeddings, HuggingFace transformers, NER, semantic search, summarisation/QA/translation.
-- **Computer Vision** — classification, detection, segmentation, augmentation, Vision Transformers.
-- **Generative AI & LLMs** — LLM fundamentals, prompt engineering, RAG, fine-tuning (LoRA/QLoRA), LangChain, evaluation, vector DBs, diffusion, GANs, multimodal models, AI agents.
-
-### Phase 4 · Deploy & Ship (Days 39–45)
-
-- **MLOps & Deployment** — FastAPI, Docker, Git/GitHub, experiment tracking (MLflow/W&B), Streamlit apps, CI/CD, cloud ML, monitoring, feature stores, explainability.
-- **Storytelling & Interviews** — dashboards, narrative notebooks, ML system design, stakeholder presentations, daily stats/ML/SQL interview practice.
+### Phase 4 · Deploy & Ship (Days 51–65)
+MLOps (FastAPI, Docker, MLflow), Data Engineering, Reinforcement Learning, AI Ethics, Graph ML, Capstone Projects, Soft Skills & Interview Prep.
 
 ---
 
-## How to use this roadmap
+## Tech Stack
 
-1. **Commit to 45 days** — treat each day as a "chapter" and finish at least one skill block.
-2. **Pick resources** — for each skill, attach your chosen videos, docs, or blogs as links in this repo or a Notion page.
-3. **Build mini-projects** — aim for at least one project per phase (EDA + regression, tabular ML, DL/NLP/CV, one deployed app or GenAI system).
-4. **Track progress** — check off skills as you complete them and log learnings in issues or a learning journal.
-
----
-
-## Intended audience
-
-- You (the author) as the main trainee — focused on a disciplined solo grind.
-- Future-you, friends, or juniors who want a concrete DS/ML/GenAI path instead of scattered tutorials.
+- **Frontend:** Vanilla HTML, CSS, JavaScript (no framework)
+- **Styling:** Custom CSS + utility classes
+- **Backend:** [Supabase](https://supabase.com) (PostgreSQL + Auth + Realtime)
+- **Hosting:** [Cloudflare Pages](https://pages.cloudflare.com)
+- **Fonts:** Geist Sans & Geist Mono
 
 ---
 
-## Disclaimer
+## Local Development
 
-This is an aggressive roadmap by design — it assumes prior programming comfort and serious daily time investment. Scale the number of topics per day to your schedule, but keep the overall phase order and milestones.
+1. Clone this repo.
+2. Open `index.html` in a browser — that's it. No build step required.
+3. To enable cloud sync, you need a Supabase project with a `journals` table and Row Level Security enabled.
 
 ---
 
-> *45 days. 106 skills. One path. Lock in.*
+> *65 days. 139 skills. One path. Lock in.*
