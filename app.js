@@ -78,7 +78,7 @@ function getStartDate() {
 }
 function setStartDate() {
   if (!getStartDate()) {
-    try { localStorage.setItem(DAY_START_KEY, new Date().toISOString()); } catch(e) {}
+    try { localStorage.setItem(DAY_START_KEY, new Date().toISOString()); } catch(e) { console.warn('Silenced error:', e); }
     saveGlobalStateToSupabase();
   }
 }
@@ -207,16 +207,16 @@ const SKILL_ICONS_BY_PHASE = {
 // ─── State ─────────────────────────────────────────────────────
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if(r) checked = JSON.parse(r); } catch(e) { checked = {}; }
-  try { const s = localStorage.getItem(SETTINGS_KEY); if(s) settings = { ...settings, ...JSON.parse(s) }; } catch(e) {}
+  try { const s = localStorage.getItem(SETTINGS_KEY); if(s) settings = { ...settings, ...JSON.parse(s) }; } catch(e) { console.warn('Silenced error:', e); }
   try { const j = localStorage.getItem('lockin_journal'); if(j) journalEntries = JSON.parse(j); } catch(e) { journalEntries = {}; }
 }
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) { console.warn('Silenced error:', e); }
   saveGlobalStateToSupabase();
 }
-function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {} }
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) { console.warn('Silenced error:', e); } }
 function saveJournalState() {
-  try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+  try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) { console.warn('Silenced error:', e); }
 }
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 
@@ -302,7 +302,7 @@ async function handleLogout() {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
     checked = {};
-    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch(e) {}
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch(e) { console.warn('Silenced error:', e); }
     journalEntries = {};
     renderView();
   }
@@ -343,19 +343,19 @@ async function loadJournalsFromSupabase() {
             const payload = JSON.parse(row.content);
             if (payload.checked && JSON.stringify(payload.checked) !== JSON.stringify(checked)) {
               checked = payload.checked;
-              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) { console.warn('Silenced error:', e); }
               updated = true;
             }
             if (payload.startDate !== undefined) {
               if (payload.startDate === null) {
-                try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+                try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
                 updated = true;
               } else if (payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
-                try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) {}
+                try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) { console.warn('Silenced error:', e); }
                 updated = true;
               }
             }
-          } catch(e) {}
+          } catch(e) { console.warn('Silenced error:', e); }
         }
         else if (row.title && row.title.startsWith('Day ')) {
           const dayMatch = row.title.match(/Day (\d+)/);
@@ -368,12 +368,12 @@ async function loadJournalsFromSupabase() {
                 journalEntries[dayNum] = entry;
                 updated = true;
               }
-            } catch(e) {}
+            } catch(e) { console.warn('Silenced error:', e); }
           }
         }
       }
       if (updated) {
-        try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) {}
+        try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) { console.warn('Silenced error:', e); }
         renderView();
       }
     }
@@ -1415,7 +1415,7 @@ function toggleMasterCard(id) {
   }
   try {
     localStorage.setItem('lockin_mastered_cards', JSON.stringify(masteredCards));
-  } catch(e) {}
+  } catch(e) { console.warn('Silenced error:', e); }
   renderResourcesView();
 }
 
@@ -1429,6 +1429,16 @@ window.prevFlashcard = prevFlashcard;
 window.nextFlashcard = nextFlashcard;
 window.toggleMasterCard = toggleMasterCard;
 window.updateNeuronSim = updateNeuronSim;
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function renderJournalView() {
   const main = document.getElementById('main');
@@ -1512,7 +1522,7 @@ function renderJournalView() {
         <div class="max-w-[800px] w-full mx-auto">
           <!-- Meta Header -->
           <div class="mb-8 md:mb-12 border-b border-outline-variant pb-6 md:pb-8">
-            <input id="journal-title" class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none focus:ring-0 text-xl md:text-3xl" placeholder="Entry Title..." type="text" value="${currentEntry.title || ''}"/>
+            <input id="journal-title" class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none focus:ring-0 text-xl md:text-3xl" placeholder="Entry Title..." type="text" value="${escapeHTML(currentEntry.title || '')}"/>
             <div class="flex flex-wrap gap-6 md:gap-8">
               <div class="flex-1 min-w-[150px]">
                 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">DAILY MOOD</label>
@@ -1543,7 +1553,7 @@ function renderJournalView() {
             <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4 flex items-center gap-2">
               <span class="material-symbols-outlined text-[16px]">code</span> TECHNICAL LOG & REFLECTIONS
             </label>
-            <textarea id="journal-text" class="w-full min-h-[250px] md:min-h-[300px] outline-none resize-y bg-transparent font-mono text-sm leading-relaxed border border-outline-variant p-4 focus:border-primary transition-colors focus:ring-0" placeholder="Start writing...">${currentEntry.text || ''}</textarea>
+            <textarea id="journal-text" class="w-full min-h-[250px] md:min-h-[300px] outline-none resize-y bg-transparent font-mono text-sm leading-relaxed border border-outline-variant p-4 focus:border-primary transition-colors focus:ring-0" placeholder="Start writing...">${escapeHTML(currentEntry.text || '')}</textarea>
           </div>
 
           <!-- Key Breakthroughs -->
@@ -1555,7 +1565,7 @@ function renderJournalView() {
                   <span class="material-symbols-outlined ${bt ? 'text-secondary' : 'text-outline-variant'}" style="font-size: 20px;">
                     ${bt ? 'check_circle' : 'radio_button_unchecked'}
                   </span>
-                  <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0 journal-bt-input" type="text" data-index="${idx}" value="${bt || ''}" placeholder="${idx === 0 ? 'e.g. Mastered tonal stepping for depth' : 'Add breakthrough...'}" oninput="updateBtIcons()"/>
+                  <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0 journal-bt-input" type="text" data-index="${idx}" value="${escapeHTML(bt || '')}" placeholder="${idx === 0 ? 'e.g. Mastered tonal stepping for depth' : 'Add breakthrough...'}" oninput="updateBtIcons()"/>
                 </div>
               `).join('')}
             </div>
@@ -1862,7 +1872,7 @@ function renderSettings() {
         if (data.checked && typeof data.checked === 'object') {
           if (confirm('Import will replace your current progress. Continue?')) {
             checked = data.checked;
-            if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch(e) {} }
+            if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch(e) { console.warn('Silenced error:', e); } }
             saveState();
             closePanel('settings-panel', 'settings-overlay');
             renderView();
@@ -1876,7 +1886,7 @@ function renderSettings() {
   document.getElementById('btn-reset').addEventListener('click', function() {
     if (confirm('⚠️ Reset ALL progress? This cannot be undone.')) {
       checked = {};
-      try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+      try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
       saveState();
       closePanel('settings-panel', 'settings-overlay');
       renderView();
@@ -1978,7 +1988,7 @@ function bindFilterEvents() {
     resetBtn.addEventListener('click', function() {
       if (confirm('Reset all progress? This cannot be undone.')) {
         checked = {};
-        try { localStorage.removeItem(DAY_START_KEY); } catch(e) {}
+        try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
         saveState();
         renderView();
       }

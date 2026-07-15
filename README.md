@@ -1,25 +1,27 @@
-# ZEN MASTERY · 65-Day Lock-In
+# Zen Mastery - 65-Day Python & Data Science Lock-In
 
-A personal, 65-day mastery path for Data Science, Machine Learning, Deep Learning, and Generative AI — built as a fully interactive web dashboard with real-time cloud sync.
+A highly structured, locally-hosted curriculum tracker for mastering Python, Data Science, and Machine Learning over a 65-day period. This is not a casual tutorial; it is designed for a focused, deep-work "lock-in" consisting of 157 curated skills across 18 specialized sections.
 
-**Live Site:** [lock-in-deepak.pages.dev](https://lock-in-deepak.pages.dev)
+## 🎯 The Philosophy
+- **Focus over breadth**: 157 distinct, actionable skills, rather than vague topic areas.
+- **Curated resources**: Every skill is mapped to high-quality, free resources (Kaggle Learn, StatQuest, 3Blue1Brown, Real Python, etc.).
+- **Pacing**: Designed to push you through the curriculum in exactly 65 days.
+- **Accountability**: Integrated journaling to document daily breakthroughs and technical logs.
 
----
+## 🧠 Curriculum Overview (157 Skills)
 
-## What This Is
+The curriculum is broken down into four elemental phases:
 
-- A structured **139-skill curriculum** spread across 18 sections and 4 phases.
-- A fully functional **web dashboard** with progress tracking, journals, statistics, and a smart timer.
-- Password-protected with **Supabase Authentication** — your progress is safe and synced to the cloud in real-time.
-- Designed as a solo "lock-in" grind — track daily progress from Day 1 to Day 65.
+1. **Earth (Foundation)**: Python Basics, Data Science (Pandas/NumPy), SQL, Math for ML.
+2. **Water (Flow & Preparation)**: Statistics & Probability, Data Wrangling, EDA.
+3. **Fire (Modeling)**: Core ML Algorithms, Deep Learning, NLP, Time Series.
+4. **Air (Production)**: MLOps, Model Deployment, Cloud Basics, Version Control.
 
----
-
-## Features
+## 🚀 Features
 
 | Feature | Description |
 |---|---|
-| **Phases View** | Browse all 139 skills organized into collapsible sections with checkboxes, resource links, and progress bars. |
+| **Phases View** | Browse all 157 skills organized into collapsible sections with checkboxes, resource links, and progress bars. |
 | **Roadmap View** | A visual timeline showing all sections as alternating cards with progress indicators. |
 | **Stats Dashboard** | Journey timer, study pace, projected completion date, rank ladder, and section-by-section breakdown. |
 | **Smart Timer** | Calculates where you *should* be vs where you *actually* are against the 65-day deadline. Motivates or reality-checks you accordingly. |
