@@ -935,8 +935,13 @@ function renderTimerView() {
     }
     feedbackColor = 'text-secondary';
   } else if (diff < 0) {
-    feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
-    feedbackColor = 'text-error';
+    if (daysElapsed < 1) {
+      feedback = `<strong>Still Day 1 — plenty of runway.</strong> The baseline is ${Math.ceil(paceTarget)} skill(s) per day and you've conquered ${done} so far. You've got until the day is out to hit pace.`;
+      feedbackColor = 'text-primary';
+    } else {
+      feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
+      feedbackColor = 'text-error';
+    }
   } else {
     feedback = `<strong>Perfectly on track.</strong> You are exactly where you need to be. Maintain this consistency.`;
     feedbackColor = 'text-primary';
@@ -955,7 +960,7 @@ function renderTimerView() {
       <div class="card flex flex-col gap-4 p-8 border border-outline-variant relative overflow-hidden bg-surface-container-low">
         <h3 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase mb-2">EXPECTED MASTERY</h3>
         <span class="font-display text-5xl text-on-surface-variant">${expectedSkills} <span class="text-2xl text-outline-variant">/ ${total}</span></span>
-        <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.max(1, Math.floor(daysElapsed))}</span>
+        <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.floor(daysElapsed) + 1}</span>
         <div class="w-full h-[4px] bg-surface-container relative mt-4">
           <div class="absolute top-0 left-0 h-full bg-outline-variant transition-all duration-1000" style="width:${expectedPct}%"></div>
         </div>
