@@ -18,12 +18,12 @@ function getDetailedElapsedTime() {
   if (!startStr) return null;
   const start = new Date(startStr);
   const diffMs = new Date() - start;
-  
+
   const secs = Math.floor(diffMs / 1000) % 60;
   const mins = Math.floor(diffMs / (1000 * 60)) % 60;
   const hours = Math.floor(diffMs / (1000 * 60 * 60)) % 24;
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
+
   return { days, hours, mins, secs, totalMs: diffMs };
 }
 
@@ -39,7 +39,7 @@ function startHeaderTimer() {
     } else {
       el.textContent = `DAY ${elapsed.days + 1} (${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m ${elapsed.secs}s)`;
     }
-    
+
     const statsTimerEl = document.getElementById('stats-live-timer');
     if (statsTimerEl && elapsed) {
       statsTimerEl.textContent = `${elapsed.days}d ${elapsed.hours}h ${elapsed.mins}m ${elapsed.secs}s`;
@@ -49,14 +49,14 @@ function startHeaderTimer() {
 
 // ─── Rank system ───────────────────────────────────────────────
 const RANKS = [
-  { min: 0,   name: 'Initiate',           icon: 'person' },
-  { min: 5,   name: 'Apprentice',         icon: 'school' },
-  { min: 15,  name: 'Student',            icon: 'menu_book' },
-  { min: 25,  name: 'Practitioner',       icon: 'psychology' },
-  { min: 40,  name: 'Warrior',            icon: 'shield' },
-  { min: 55,  name: 'Expert',             icon: 'star' },
-  { min: 70,  name: 'Master',             icon: 'workspace_premium' },
-  { min: 85,  name: 'Grand Master',       icon: 'diamond' },
+  { min: 0, name: 'Initiate', icon: 'person' },
+  { min: 5, name: 'Apprentice', icon: 'school' },
+  { min: 15, name: 'Student', icon: 'menu_book' },
+  { min: 25, name: 'Practitioner', icon: 'psychology' },
+  { min: 40, name: 'Warrior', icon: 'shield' },
+  { min: 55, name: 'Expert', icon: 'star' },
+  { min: 70, name: 'Master', icon: 'workspace_premium' },
+  { min: 85, name: 'Grand Master', icon: 'diamond' },
   { min: 100, name: 'Elite Practitioner', icon: 'military_tech' },
 ];
 
@@ -74,18 +74,18 @@ function getNextRank(pct) {
 
 // ─── Day counter ────────────────────────────────────────────────
 function getStartDate() {
-  try { const d = localStorage.getItem(DAY_START_KEY); return d ? new Date(d) : null; } catch(e) { return null; }
+  try { const d = localStorage.getItem(DAY_START_KEY); return d ? new Date(d) : null; } catch (e) { return null; }
 }
 function setStartDate() {
   if (!getStartDate()) {
-    try { localStorage.setItem(DAY_START_KEY, new Date().toISOString()); } catch(e) { console.warn('Silenced error:', e); }
+    try { localStorage.setItem(DAY_START_KEY, new Date().toISOString()); } catch (e) { console.warn('Silenced error:', e); }
     saveGlobalStateToSupabase();
   }
 }
 function getDayCount() {
   const start = getStartDate();
   if (!start) return 0;
-  
+
   // Do not count days if they have not checked any skills
   const done = Object.values(checked).filter(v => v).length;
   if (done === 0) return 0;
@@ -164,13 +164,13 @@ const QUOTES = {
 };
 
 const ELEMENT_META = {
-  earth:     { symbol: '⛰', color: '#0077FF', label: 'Foundations' },
-  water:     { symbol: '🌊', color: '#0077FF', label: 'Statistics' },
-  fire:      { symbol: '🔥', color: '#10B981', label: 'Machine Learning' },
-  wind:      { symbol: '💨', color: '#FBBF24', label: 'Applied AI' },
+  earth: { symbol: '⛰', color: '#0077FF', label: 'Foundations' },
+  water: { symbol: '🌊', color: '#0077FF', label: 'Statistics' },
+  fire: { symbol: '🔥', color: '#10B981', label: 'Machine Learning' },
+  wind: { symbol: '💨', color: '#FBBF24', label: 'Applied AI' },
   lightning: { symbol: '⚡', color: '#EF4444', label: 'Generative AI' },
-  metal:     { symbol: '⚙️', color: '#10B981', label: 'Engineering' },
-  void:      { symbol: '✨', color: '#FBBF24', label: 'Mastery' },
+  metal: { symbol: '⚙️', color: '#10B981', label: 'Engineering' },
+  void: { symbol: '✨', color: '#FBBF24', label: 'Mastery' },
 };
 
 const SECTION_ELEMENT = {};
@@ -178,13 +178,13 @@ SECTIONS.forEach(s => { SECTION_ELEMENT[s.id] = s.element || 'default'; });
 
 function getPhaseColor(element) {
   const map = {
-    earth:     { color: '#0077FF', phase: 'blue',    icon: 'code' },
-    water:     { color: '#0077FF', phase: 'blue',    icon: 'query_stats' },
-    fire:      { color: '#10B981', phase: 'emerald', icon: 'psychology' },
-    wind:      { color: '#FBBF24', phase: 'gold',    icon: 'neurology' },
+    earth: { color: '#0077FF', phase: 'blue', icon: 'code' },
+    water: { color: '#0077FF', phase: 'blue', icon: 'query_stats' },
+    fire: { color: '#10B981', phase: 'emerald', icon: 'psychology' },
+    wind: { color: '#FBBF24', phase: 'gold', icon: 'neurology' },
     lightning: { color: '#EF4444', phase: 'crimson', icon: 'auto_awesome' },
-    metal:     { color: '#10B981', phase: 'emerald', icon: 'build' },
-    void:      { color: '#FBBF24', phase: 'gold',    icon: 'military_tech' },
+    metal: { color: '#10B981', phase: 'emerald', icon: 'build' },
+    void: { color: '#FBBF24', phase: 'gold', icon: 'military_tech' },
   };
   return map[element] || map.earth;
 }
@@ -198,25 +198,25 @@ const SECTION_ICONS = {
 };
 
 const SKILL_ICONS_BY_PHASE = {
-  blue:    ['code', 'functions', 'dataset', 'terminal', 'bar_chart', 'storage'],
+  blue: ['code', 'functions', 'dataset', 'terminal', 'bar_chart', 'storage'],
   emerald: ['psychology', 'show_chart', 'account_tree', 'bubble_chart', 'analytics', 'tune'],
-  gold:    ['neurology', 'translate', 'visibility', 'smart_toy', 'military_tech', 'record_voice_over'],
+  gold: ['neurology', 'translate', 'visibility', 'smart_toy', 'military_tech', 'record_voice_over'],
   crimson: ['auto_awesome', 'bolt', 'hub', 'rocket_launch', 'science', 'model_training'],
 };
 
 // ─── State ─────────────────────────────────────────────────────
 function loadState() {
-  try { const r = localStorage.getItem(STORAGE_KEY); if(r) checked = JSON.parse(r); } catch(e) { checked = {}; }
-  try { const s = localStorage.getItem(SETTINGS_KEY); if(s) settings = { ...settings, ...JSON.parse(s) }; } catch(e) { console.warn('Silenced error:', e); }
-  try { const j = localStorage.getItem('lockin_journal'); if(j) journalEntries = JSON.parse(j); } catch(e) { journalEntries = {}; }
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) checked = JSON.parse(r); } catch (e) { checked = {}; }
+  try { const s = localStorage.getItem(SETTINGS_KEY); if (s) settings = { ...settings, ...JSON.parse(s) }; } catch (e) { console.warn('Silenced error:', e); }
+  try { const j = localStorage.getItem('lockin_journal'); if (j) journalEntries = JSON.parse(j); } catch (e) { journalEntries = {}; }
 }
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) { console.warn('Silenced error:', e); }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch (e) { console.warn('Silenced error:', e); }
   saveGlobalStateToSupabase();
 }
-function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) { console.warn('Silenced error:', e); } }
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { console.warn('Silenced error:', e); } }
 function saveJournalState() {
-  try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) { console.warn('Silenced error:', e); }
+  try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch (e) { console.warn('Silenced error:', e); }
 }
 function getAllSkills() { return SECTIONS.flatMap(s => s.skills); }
 
@@ -261,17 +261,17 @@ async function handleAuthSubmit() {
   const password = document.getElementById('auth-password').value.trim();
   const errorEl = document.getElementById('auth-error');
   errorEl.classList.add('hidden');
-  
+
   if (!email || !password) {
     errorEl.textContent = 'Please enter email and password.';
     errorEl.classList.remove('hidden');
     return;
   }
-  
+
   const btn = document.getElementById('auth-submit-btn');
   const originalText = btn.textContent;
   btn.textContent = 'PROCESSING...';
-  
+
   try {
     let res;
     if (isLoginMode) {
@@ -279,16 +279,16 @@ async function handleAuthSubmit() {
     } else {
       res = await supabaseClient.auth.signUp({ email, password });
     }
-    
+
     if (res.error) throw res.error;
-    
+
     if (!isLoginMode && res.data?.user && res.data?.session === null) {
       errorEl.textContent = 'Please check your email to confirm your account.';
       errorEl.classList.remove('hidden');
       errorEl.classList.remove('text-error');
       errorEl.classList.add('text-secondary');
     }
-  } catch(err) {
+  } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
     errorEl.classList.add('text-error');
@@ -302,7 +302,7 @@ async function handleLogout() {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
     checked = {};
-    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch(e) { console.warn('Silenced error:', e); }
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch (e) { console.warn('Silenced error:', e); }
     journalEntries = {};
     renderView();
   }
@@ -318,7 +318,7 @@ async function saveGlobalStateToSupabase() {
     const payload = { checked, startDate: localStorage.getItem(DAY_START_KEY) };
     const { data: existing, error: findErr } = await supabaseClient.from('journals').select('id').eq('title', 'global_state');
     if (findErr) throw findErr;
-    
+
     if (existing && existing.length > 0) {
       await supabaseClient.from('journals').update({ content: JSON.stringify(payload) }).eq('id', existing[0].id);
     } else {
@@ -334,7 +334,7 @@ async function loadJournalsFromSupabase() {
   try {
     const { data, error } = await supabaseClient.from('journals').select('*');
     if (error) throw error;
-    
+
     if (data) {
       let updated = false;
       for (const row of data) {
@@ -343,19 +343,19 @@ async function loadJournalsFromSupabase() {
             const payload = JSON.parse(row.content);
             if (payload.checked && JSON.stringify(payload.checked) !== JSON.stringify(checked)) {
               checked = payload.checked;
-              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) { console.warn('Silenced error:', e); }
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch (e) { console.warn('Silenced error:', e); }
               updated = true;
             }
             if (payload.startDate !== undefined) {
               if (payload.startDate === null) {
-                try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
+                try { localStorage.removeItem(DAY_START_KEY); } catch (e) { console.warn('Silenced error:', e); }
                 updated = true;
               } else if (payload.startDate !== localStorage.getItem(DAY_START_KEY)) {
-                try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch(e) { console.warn('Silenced error:', e); }
+                try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch (e) { console.warn('Silenced error:', e); }
                 updated = true;
               }
             }
-          } catch(e) { console.warn('Silenced error:', e); }
+          } catch (e) { console.warn('Silenced error:', e); }
         }
         else if (row.title && row.title.startsWith('Day ')) {
           const dayMatch = row.title.match(/Day (\d+)/);
@@ -363,17 +363,17 @@ async function loadJournalsFromSupabase() {
             const dayNum = parseInt(dayMatch[1], 10);
             try {
               const entry = JSON.parse(row.content);
-              entry.id = row.id; 
+              entry.id = row.id;
               if (JSON.stringify(journalEntries[dayNum]) !== JSON.stringify(entry)) {
                 journalEntries[dayNum] = entry;
                 updated = true;
               }
-            } catch(e) { console.warn('Silenced error:', e); }
+            } catch (e) { console.warn('Silenced error:', e); }
           }
         }
       }
       if (updated) {
-        try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch(e) { console.warn('Silenced error:', e); }
+        try { localStorage.setItem('lockin_journal', JSON.stringify(journalEntries)); } catch (e) { console.warn('Silenced error:', e); }
         renderView();
       }
     }
@@ -401,7 +401,7 @@ function showSyncStatus(msg) {
 function getGlobalStats() {
   const all = getAllSkills(), total = all.length;
   const done = all.filter(s => checked[s.id]).length;
-  const pct = total > 0 ? Math.round((done/total)*100) : 0;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return { all, total, done, pct };
 }
 
@@ -447,7 +447,7 @@ function toggleSkill(skillId) {
   checked[skillId] = !wasDone;
   saveState();
 
-  const card = document.querySelector('.skill-card[data-skill-id="'+skillId+'"]');
+  const card = document.querySelector('.skill-card[data-skill-id="' + skillId + '"]');
   if (card) {
     const isDone = !!checked[skillId];
     card.classList.toggle('is-done', isDone);
@@ -464,55 +464,55 @@ function toggleSkill(skillId) {
   const secId = findSectionForSkill(skillId);
   updateSectionProgress(secId);
   if (!wasDone && checked[skillId]) showMotivation(skillId, secId);
-  if (currentFilter==='done'||currentFilter==='undone') renderView();
+  if (currentFilter === 'done' || currentFilter === 'undone') renderView();
 }
 
 function findSectionForSkill(skillId) {
-  for (const sec of SECTIONS) { if(sec.skills.some(s=>s.id===skillId)) return sec.id; }
+  for (const sec of SECTIONS) { if (sec.skills.some(s => s.id === skillId)) return sec.id; }
   return null;
 }
 
 function updateSectionProgress(sectionId) {
   if (!sectionId) return;
-  const sec = SECTIONS.find(s=>s.id===sectionId); if(!sec) return;
-  const done = sec.skills.filter(s=>checked[s.id]).length;
+  const sec = SECTIONS.find(s => s.id === sectionId); if (!sec) return;
+  const done = sec.skills.filter(s => checked[s.id]).length;
   const total = sec.skills.length;
-  const pct = Math.round((done/total)*100);
+  const pct = Math.round((done / total) * 100);
 
-  const countEl = document.getElementById('phase-count-'+sectionId);
-  const barEl = document.getElementById('phase-bar-'+sectionId);
-  const groupEl = document.querySelector('.phase-group[data-section-id="'+sectionId+'"]');
-  const badgeEl = document.getElementById('phase-badge-'+sectionId);
+  const countEl = document.getElementById('phase-count-' + sectionId);
+  const barEl = document.getElementById('phase-bar-' + sectionId);
+  const groupEl = document.querySelector('.phase-group[data-section-id="' + sectionId + '"]');
+  const badgeEl = document.getElementById('phase-badge-' + sectionId);
 
-  if (countEl) countEl.textContent = done+'/'+total;
-  if (barEl) barEl.style.width = pct+'%';
+  if (countEl) countEl.textContent = done + '/' + total;
+  if (barEl) barEl.style.width = pct + '%';
   if (groupEl) groupEl.classList.toggle('completed', done === total);
   if (badgeEl) badgeEl.style.display = (done === total) ? 'inline-block' : 'none';
 }
 
 function toggleSection(sectionId) {
-  const grid = document.getElementById('grid-'+sectionId);
-  const chev = document.getElementById('chev-'+sectionId);
+  const grid = document.getElementById('grid-' + sectionId);
+  const chev = document.getElementById('chev-' + sectionId);
   if (!grid) return;
   grid.classList.toggle('collapsed');
   if (chev) chev.classList.toggle('collapsed');
 }
 
 function toggleResources(skillId, btn) {
-  const dd = document.getElementById('res-'+skillId); if(!dd) return;
+  const dd = document.getElementById('res-' + skillId); if (!dd) return;
   const isOpen = dd.classList.contains('open');
-  dd.classList.toggle('open',!isOpen);
-  btn.classList.toggle('open',!isOpen);
+  dd.classList.toggle('open', !isOpen);
+  btn.classList.toggle('open', !isOpen);
   btn.textContent = isOpen ? '▸ Learn' : '▾ Close';
 }
 
 // ─── Motivation popup ────────────────────────────────────────────
 function showMotivation(skillId, sectionId) {
   const element = SECTION_ELEMENT[sectionId] || 'default';
-  const meta = ELEMENT_META[element] || { symbol:'✅', color:'#FBBF24', label:'Mastered' };
+  const meta = ELEMENT_META[element] || { symbol: '✅', color: '#FBBF24', label: 'Mastered' };
   const pool = QUOTES[element] || QUOTES.default;
-  const q = pool[Math.floor(Math.random()*pool.length)];
-  const skillObj = getAllSkills().find(s=>s.id===skillId);
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  const skillObj = getAllSkills().find(s => s.id === skillId);
   const skillName = skillObj ? skillObj.name.split('—')[0].trim() : 'Skill';
   const { total, done, pct } = getGlobalStats();
   const rank = getRank(pct);
@@ -536,7 +536,7 @@ function closeMotivation() {
   document.getElementById('motivation-overlay').classList.remove('visible');
   document.body.style.overflow = '';
 }
-document.getElementById('motivation-overlay').addEventListener('click', function(e) {
+document.getElementById('motivation-overlay').addEventListener('click', function (e) {
   if (e.target === this) closeMotivation();
 });
 
@@ -546,18 +546,18 @@ document.getElementById('motivation-overlay').addEventListener('click', function
 
 function renderSection(sec, isExpanded) {
   const visSkills = sec.skills.filter(skillVisible);
-  if (visSkills.length===0) return null;
+  if (visSkills.length === 0) return null;
 
-  const done = sec.skills.filter(s=>checked[s.id]).length;
+  const done = sec.skills.filter(s => checked[s.id]).length;
   const total = sec.skills.length;
-  const pct = Math.round((done/total)*100);
+  const pct = Math.round((done / total) * 100);
   const isComplete = done === total;
   const sectionIcon = SECTION_ICONS[sec.id] || 'school';
 
   const phaseGroup = document.createElement('div');
   phaseGroup.className = 'flex flex-col gap-4';
 
-  const cardsHTML = visSkills.map(function(skill) {
+  const cardsHTML = visSkills.map(function (skill) {
     const isDone = !!checked[skill.id];
     const tagLabel = skill.tag;
     const resHTML = skill.resources.map(r =>
@@ -566,17 +566,17 @@ function renderSection(sec, isExpanded) {
         <span class="material-symbols-outlined text-[16px] text-outline-variant group-hover:text-primary transition-colors">north_east</span>
       </a>`
     ).join('');
-    
+
     const statusIcon = isDone ? 'check_box' : 'check_box_outline_blank';
     const isCompactClass = settings.compactCards ? ' p-4' : ' p-8';
     const activeBorderClass = isDone ? '' : 'border-l-4 border-l-secondary';
-    
-    return `<div class="card card-hover flex flex-col gap-4 relative overflow-hidden ${isDone?'opacity-60':''} ${activeBorderClass} ${isCompactClass} skill-card" data-skill-id="${skill.id}">
+
+    return `<div class="card card-hover flex flex-col gap-4 relative overflow-hidden ${isDone ? 'opacity-60' : ''} ${activeBorderClass} ${isCompactClass} skill-card" data-skill-id="${skill.id}">
       <div class="absolute top-4 right-4 skill-status" onclick="toggleSkill('${skill.id}')">
-        <span class="material-symbols-outlined cursor-pointer hover:text-secondary ${isDone?'text-secondary':'text-outline-variant'}" style="font-variation-settings: 'FILL' ${isDone?1:0};">${statusIcon}</span>
+        <span class="material-symbols-outlined cursor-pointer hover:text-secondary ${isDone ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${isDone ? 1 : 0};">${statusIcon}</span>
       </div>
       <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">${tagLabel}</span>
-      <h4 class="font-headline-md text-headline-md text-primary cursor-pointer pr-8 skill-card-name ${isDone?'line-through text-on-surface-variant':''}" onclick="toggleSkill('${skill.id}')">${skill.name.split('—')[0].trim()}</h4>
+      <h4 class="font-headline-md text-headline-md text-primary cursor-pointer pr-8 skill-card-name ${isDone ? 'line-through text-on-surface-variant' : ''}" onclick="toggleSkill('${skill.id}')">${skill.name.split('—')[0].trim()}</h4>
       ${!settings.compactCards ? `<p class="font-body-md text-body-md text-on-surface-variant cursor-pointer" onclick="toggleSkill('${skill.id}')">${skill.desc}</p>` : ''}
       <div class="flex gap-4 mt-2">
         <button class="font-body-md text-sm text-secondary hover:underline flex items-center gap-1 font-bold" onclick="event.stopPropagation();toggleResources('${skill.id}',this)">
@@ -667,10 +667,10 @@ function renderPhasesView() {
   while (tmp.firstChild) main.appendChild(tmp.firstChild);
 
   const firstIncomplete = findFirstIncompleteSection();
-  const roadmap = document.createElement('div'); 
+  const roadmap = document.createElement('div');
   roadmap.className = 'col-span-1 md:col-span-12 flex flex-col gap-8';
   roadmap.innerHTML = '<h3 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4 mt-8">Curriculum Structure</h3>';
-  
+
   let rendered = 0;
   for (const sec of SECTIONS) {
     const el = renderSection(sec, sec.id === firstIncomplete);
@@ -706,22 +706,22 @@ function renderRoadmapView() {
   SECTIONS.forEach((sec, i) => {
     const done = sec.skills.filter(s => checked[s.id]).length;
     const total = sec.skills.length;
-    const pct = Math.round((done/total)*100);
+    const pct = Math.round((done / total) * 100);
     const isCurrent = sec.id === firstIncomplete;
     const isComplete = done === total;
-    
-    const alignmentClass = i % 2 === 0 
-      ? 'md:flex-row' 
-      : 'md:flex-row-reverse'; 
-      
+
+    const alignmentClass = i % 2 === 0
+      ? 'md:flex-row'
+      : 'md:flex-row-reverse';
+
     const textAlignmentClass = i % 2 === 0
       ? 'md:text-right md:justify-end'
       : 'md:text-left md:justify-start';
 
-    const cardClass = isCurrent 
-      ? 'border-l-4 border-l-secondary bg-white' 
-      : isComplete 
-        ? 'opacity-60 bg-surface-container-low' 
+    const cardClass = isCurrent
+      ? 'border-l-4 border-l-secondary bg-white'
+      : isComplete
+        ? 'opacity-60 bg-surface-container-low'
         : 'bg-white';
 
     const cardHtml = `
@@ -782,26 +782,35 @@ function renderStatsView() {
   const elapsed = getDetailedElapsedTime();
   const daysElapsed = elapsed ? (elapsed.totalMs / (1000 * 60 * 60 * 24)) : 0;
   const totalHours = getTotalHoursLogged();
-  
+
   let paceText = "Not enough progress data yet.";
   let projectionText = "Check off your first skills and log study hours in your Journal to calculate speed projections.";
-  
-  if (done > 0 && daysElapsed > 0.001) {
-    const skillsPerDay = done / daysElapsed;
-    const hoursPerDay = totalHours / daysElapsed;
+
+  if (done > 0 && elapsed) {
+    // Floor at 1 day so a skill checked minutes into Day 1 doesn't
+    // extrapolate into an absurd "8 skills/day" pace / short ETA.
+    const effectiveDays = Math.max(daysElapsed, 1);
+
+    const skillsPerDay = done / effectiveDays;
+    const hoursPerDay = totalHours / effectiveDays;
     const remainingSkills = total - done;
-    
-    const skillsRate = skillsPerDay > 0 ? skillsPerDay : 1;
-    const estimatedDaysRemaining = remainingSkills / skillsRate;
-    
-    const hoursPerSkill = done > 0 ? (totalHours / done) : 0;
-    const estimatedHoursRemaining = remainingSkills * hoursPerSkill;
-    
+    const estimatedDaysRemaining = remainingSkills / skillsPerDay;
+
     const completionDate = new Date();
     completionDate.setDate(completionDate.getDate() + estimatedDaysRemaining);
-    
+
     paceText = `Completing <strong>${skillsPerDay.toFixed(2)} skills/day</strong>, studying <strong>${hoursPerDay.toFixed(1)} hrs/day</strong>.`;
-    projectionText = `To conquer the remaining <strong>${remainingSkills} skills</strong>, you need approximately <strong>${estimatedHoursRemaining.toFixed(1)} hours</strong> of study, which will take about <strong>${estimatedDaysRemaining.toFixed(1)} days</strong>.<br/><span class="text-secondary mt-2 block font-bold">Projected graduation date: ${completionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`;
+    if (daysElapsed < 1) {
+      paceText += ` <span class="text-on-surface-variant">(early estimate — settles after Day 1)</span>`;
+    }
+
+    if (totalHours > 0) {
+      const hoursPerSkill = totalHours / done;
+      const estimatedHoursRemaining = remainingSkills * hoursPerSkill;
+      projectionText = `To conquer the remaining <strong>${remainingSkills} skills</strong>, you need approximately <strong>${estimatedHoursRemaining.toFixed(1)} hours</strong> of study, which will take about <strong>${estimatedDaysRemaining.toFixed(1)} days</strong> at your current pace.<br/><span class="text-secondary mt-2 block font-bold">Projected graduation date: ${completionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`;
+    } else {
+      projectionText = `At your current pace, the remaining <strong>${remainingSkills} skills</strong> will take about <strong>${estimatedDaysRemaining.toFixed(1)} days</strong>.<br/><span class="text-secondary mt-2 block font-bold">Projected graduation date: ${completionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span><br/>Log hours in your Journal to see a time-based estimate too.`;
+    }
   }
 
   let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-6 md:gap-8">
@@ -856,7 +865,7 @@ function renderStatsView() {
           </div>
           <div class="flex justify-between items-center pb-2">
             <span class="text-on-surface-variant">Average Speed</span>
-            <span class="text-primary font-bold">${daysElapsed > 0.1 ? (done / daysElapsed).toFixed(1) : '-'} skills / day</span>
+            <span class="text-primary font-bold">${done > 0 ? (done / Math.max(daysElapsed, 1)).toFixed(1) : '-'} skills / day</span>
           </div>
         </div>
       </div>
@@ -865,12 +874,12 @@ function renderStatsView() {
       <div class="card flex flex-col gap-4 p-6 md:p-8 bg-white border border-outline-variant">
         <h4 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2">RANK LADDER</h4>
         <ul class="flex flex-col gap-3 font-body-md text-body-md">`;
-        
+
   RANKS.forEach(r => {
     const isCurrent = r.name === rank.name;
     const isAchieved = pct >= r.min;
     html += `<li class="flex items-center gap-3 ${isAchieved ? 'text-primary' : 'text-outline-variant'}">
-      <span class="material-symbols-outlined ${isCurrent ? 'text-secondary' : ''}" style="font-variation-settings: 'FILL' ${isAchieved?1:0};">${r.icon}</span>
+      <span class="material-symbols-outlined ${isCurrent ? 'text-secondary' : ''}" style="font-variation-settings: 'FILL' ${isAchieved ? 1 : 0};">${r.icon}</span>
       <span class="${isCurrent ? 'font-bold' : ''}">${r.name} (${r.min}%)</span>
     </li>`;
   });
@@ -882,7 +891,7 @@ function renderStatsView() {
 function renderTimerView() {
   const main = document.getElementById('main');
   const { done, total } = getGlobalStats();
-  
+
   const start = getStartDate();
   let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
     <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Smart Timer</h1>`;
@@ -901,19 +910,19 @@ function renderTimerView() {
   const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
   const targetDays = 65;
   const paceTarget = total / targetDays; // ~2.13 skills/day
-  
+
   const expectedSkillsRaw = daysElapsed * paceTarget;
   const expectedSkills = Math.min(Math.floor(expectedSkillsRaw), total);
   const currentPace = daysElapsed > 0.1 ? (done / daysElapsed) : 0;
-  
+
   let projectedDays = 0;
   if (currentPace > 0) projectedDays = total / currentPace;
-  
+
   const diff = done - expectedSkills;
-  
+
   let feedback = '';
   let feedbackColor = '';
-  
+
   if (done === 0 && daysElapsed < 1) {
     feedback = `<strong>The clock is ticking.</strong> You just began your 65-day lock-in. To stay on track, you need to conquer at least ${Math.ceil(paceTarget)} skills today. Time to get to work.`;
     feedbackColor = 'text-primary';
@@ -963,7 +972,7 @@ function renderTimerView() {
       </div>
     </div>
   </div>`;
-  
+
   main.innerHTML = html;
 }
 
@@ -1199,13 +1208,13 @@ try {
 
 function renderResourcesView() {
   const main = document.getElementById('main');
-  
-  const tabClass = (tab) => activeResourceTab === tab 
-    ? 'border-b-2 border-secondary text-primary font-medium' 
+
+  const tabClass = (tab) => activeResourceTab === tab
+    ? 'border-b-2 border-secondary text-primary font-medium'
     : 'text-on-surface-variant hover:text-primary';
 
   let subViewHtml = '';
-  
+
   if (activeResourceTab === 'flashcards') {
     const card = FLASHCARDS[currentFlashcardIndex];
     const total = FLASHCARDS.length;
@@ -1222,7 +1231,7 @@ function renderResourcesView() {
         
         <!-- Progress Bar -->
         <div class="w-full h-[2px] bg-surface-container relative mb-4">
-          <div class="absolute top-0 left-0 h-full bg-secondary transition-all duration-300" style="width: ${(masteredCount/total)*100}%;"></div>
+          <div class="absolute top-0 left-0 h-full bg-secondary transition-all duration-300" style="width: ${(masteredCount / total) * 100}%;"></div>
         </div>
 
         <!-- Flashcard container with flip style -->
@@ -1415,7 +1424,7 @@ function toggleMasterCard(id) {
   }
   try {
     localStorage.setItem('lockin_mastered_cards', JSON.stringify(masteredCards));
-  } catch(e) { console.warn('Silenced error:', e); }
+  } catch (e) { console.warn('Silenced error:', e); }
   renderResourcesView();
 }
 
@@ -1478,7 +1487,7 @@ function renderJournalView() {
     const isSel = d === journalSelectedDay;
     const entry = journalEntries[d];
     const hasLog = entry && (entry.title || entry.text);
-    
+
     sidebarDaysHtml += `
       <div class="p-3 md:p-4 border border-outline-variant md:border-none md:border-b cursor-pointer transition-colors flex-shrink-0 ${isSel ? 'bg-primary text-white md:bg-white md:text-primary md:border-l-4 md:border-l-secondary font-medium' : 'bg-surface-container-low hover:bg-surface-container-high'}" onclick="selectJournalDay(${d})">
         <div class="flex md:justify-between items-center gap-2">
@@ -1509,7 +1518,7 @@ function renderJournalView() {
           <h3 class="font-label-caps text-label-caps text-on-surface-variant mb-2">65-DAY MASTERY</h3>
           <div class="text-sm font-body-md text-primary font-medium">Day ${dayCount} / 65</div>
           <div class="w-full h-[2px] bg-surface-container mt-2">
-            <div class="h-full bg-secondary" style="width: ${(dayCount/65)*100}%;"></div>
+            <div class="h-full bg-secondary" style="width: ${(dayCount / 65) * 100}%;"></div>
           </div>
         </div>
         <div class="flex-grow flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto gap-2 md:gap-0 scrollbar-none pb-2 md:pb-0">
@@ -1625,7 +1634,7 @@ async function saveJournalEntry() {
   const title = document.getElementById('journal-title').value.trim();
   const hours = parseFloat(document.getElementById('journal-hours').value) || 0;
   const text = document.getElementById('journal-text').value.trim();
-  
+
   const breakthroughs = [];
   document.querySelectorAll('.journal-bt-input').forEach(input => {
     const val = input.value.trim();
@@ -1645,7 +1654,7 @@ async function saveJournalEntry() {
   journalEntries[journalSelectedDay] = { ...oldEntry, ...entryData };
 
   saveJournalState();
-  
+
   const status = document.getElementById('save-status');
   if (status) status.textContent = 'Saving to cloud...';
 
@@ -1655,7 +1664,7 @@ async function saveJournalEntry() {
         title: `Day ${journalSelectedDay}: ${title || 'Untitled'}`,
         content: JSON.stringify(journalEntries[journalSelectedDay])
       };
-      
+
       let res;
       if (oldEntry.id) {
         res = await supabaseClient.from('journals').update(payload).eq('id', oldEntry.id);
@@ -1668,26 +1677,26 @@ async function saveJournalEntry() {
       }
       if (res.error) throw res.error;
       if (status) status.textContent = 'Saved successfully.';
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       if (status) status.textContent = 'Error saving to cloud.';
     }
   } else {
     if (status) status.textContent = 'Saved locally.';
   }
-  
-  setTimeout(() => { if(status) status.textContent = ''; }, 3000);
+
+  setTimeout(() => { if (status) status.textContent = ''; }, 3000);
   renderJournalView();
 }
 
 async function deleteJournalEntry() {
   if (!confirm('Are you sure you want to delete this entry?')) return;
-  
+
   const status = document.getElementById('save-status');
   if (status) status.textContent = 'Deleting...';
-  
+
   const oldEntry = journalEntries[journalSelectedDay] || {};
-  
+
   if (supabaseClient && oldEntry.id) {
     try {
       const { error } = await supabaseClient.from('journals').delete().eq('id', oldEntry.id);
@@ -1695,16 +1704,16 @@ async function deleteJournalEntry() {
     } catch (err) {
       console.error(err);
       if (status) status.textContent = 'Error deleting from cloud.';
-      setTimeout(() => { if(status) status.textContent = ''; }, 3000);
+      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
       return;
     }
   }
-  
+
   delete journalEntries[journalSelectedDay];
   saveJournalState();
-  
+
   if (status) status.textContent = 'Deleted.';
-  setTimeout(() => { if(status) status.textContent = ''; }, 3000);
+  setTimeout(() => { if (status) status.textContent = ''; }, 3000);
   renderJournalView();
 }
 
@@ -1843,7 +1852,7 @@ function renderSettings() {
     </div>`;
 
   // Bind events
-  document.getElementById('toggle-compact').addEventListener('change', function() {
+  document.getElementById('toggle-compact').addEventListener('change', function () {
     settings.compactCards = this.checked;
     saveSettings();
     if (currentView === 'phases') renderView();
@@ -1851,7 +1860,7 @@ function renderSettings() {
 
   // Sync UI removed
 
-  document.getElementById('btn-export').addEventListener('click', function() {
+  document.getElementById('btn-export').addEventListener('click', function () {
     const data = { checked, startDate: localStorage.getItem(DAY_START_KEY), exportedAt: new Date().toISOString(), version: 3 };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -1859,34 +1868,34 @@ function renderSettings() {
     a.click(); URL.revokeObjectURL(a.href);
   });
 
-  document.getElementById('btn-import').addEventListener('click', function() {
+  document.getElementById('btn-import').addEventListener('click', function () {
     document.getElementById('import-file').click();
   });
 
-  document.getElementById('import-file').addEventListener('change', function(e) {
+  document.getElementById('import-file').addEventListener('change', function (e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = function(ev) {
+    reader.onload = function (ev) {
       try {
         const data = JSON.parse(ev.target.result);
         if (data.checked && typeof data.checked === 'object') {
           if (confirm('Import will replace your current progress. Continue?')) {
             checked = data.checked;
-            if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch(e) { console.warn('Silenced error:', e); } }
+            if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch (e) { console.warn('Silenced error:', e); } }
             saveState();
             closePanel('settings-panel', 'settings-overlay');
             renderView();
           }
         } else { alert('Invalid file format.'); }
-      } catch(err) { alert('Failed to parse file: ' + err.message); }
+      } catch (err) { alert('Failed to parse file: ' + err.message); }
     };
     reader.readAsText(file);
   });
 
-  document.getElementById('btn-reset').addEventListener('click', function() {
+  document.getElementById('btn-reset').addEventListener('click', function () {
     if (confirm('⚠️ Reset ALL progress? This cannot be undone.')) {
       checked = {};
-      try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
+      try { localStorage.removeItem(DAY_START_KEY); } catch (e) { console.warn('Silenced error:', e); }
       saveState();
       closePanel('settings-panel', 'settings-overlay');
       renderView();
@@ -1926,13 +1935,13 @@ function renderView() {
   main.style.animation = '';
 
   switch (currentView) {
-    case 'phases':  renderPhasesView();  break;
+    case 'phases': renderPhasesView(); break;
     case 'roadmap': renderRoadmapView(); break;
-    case 'stats':   renderStatsView();   break;
-    case 'timer':   renderTimerView();   break;
+    case 'stats': renderStatsView(); break;
+    case 'timer': renderTimerView(); break;
     case 'resources': renderResourcesView(); break;
     case 'journal': renderJournalView(); break;
-    case 'beta':    renderBetaView();    break;
+    case 'beta': renderBetaView(); break;
   }
   updateDayBadge();
   initScrollReveal();
@@ -1966,7 +1975,7 @@ function initScrollReveal() {
 // ─── Filter + search bindings ────────────────────────────────────
 function bindFilterEvents() {
   document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', function () {
       currentFilter = btn.dataset.filter;
       document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.remove('active');
@@ -1985,10 +1994,10 @@ function bindFilterEvents() {
   });
   const resetBtn = document.getElementById('reset-btn');
   if (resetBtn) {
-    resetBtn.addEventListener('click', function() {
+    resetBtn.addEventListener('click', function () {
       if (confirm('Reset all progress? This cannot be undone.')) {
         checked = {};
-        try { localStorage.removeItem(DAY_START_KEY); } catch(e) { console.warn('Silenced error:', e); }
+        try { localStorage.removeItem(DAY_START_KEY); } catch (e) { console.warn('Silenced error:', e); }
         saveState();
         renderView();
       }
@@ -2000,7 +2009,7 @@ function bindSearchEvent() {
   const input = document.getElementById('search-input');
   if (input) {
     input.value = searchQuery;
-    input.addEventListener('input', function() {
+    input.addEventListener('input', function () {
       searchQuery = this.value;
       const roadmap = document.querySelector('.roadmap');
       if (roadmap) {
@@ -2018,7 +2027,7 @@ function bindSearchEvent() {
 
 // ─── Navigation & Panel bindings ─────────────────────────────────
 document.querySelectorAll('#header-nav a, #mobile-header-nav a').forEach(a => {
-  a.addEventListener('click', function(e) {
+  a.addEventListener('click', function (e) {
     e.preventDefault();
     if (a.dataset.view) {
       switchView(a.dataset.view);
@@ -2027,7 +2036,7 @@ document.querySelectorAll('#header-nav a, #mobile-header-nav a').forEach(a => {
 });
 
 // Notification panel
-document.getElementById('notif-btn').addEventListener('click', function() {
+document.getElementById('notif-btn').addEventListener('click', function () {
   renderNotifications();
   openPanel('notif-panel', 'notif-overlay');
 });
@@ -2035,7 +2044,7 @@ document.getElementById('notif-close').addEventListener('click', () => closePane
 document.getElementById('notif-overlay').addEventListener('click', () => closePanel('notif-panel', 'notif-overlay'));
 
 // Settings panel
-document.getElementById('settings-btn').addEventListener('click', function() {
+document.getElementById('settings-btn').addEventListener('click', function () {
   renderSettings();
   openPanel('settings-panel', 'settings-overlay');
 });
