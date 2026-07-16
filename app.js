@@ -1,8 +1,10 @@
 const STORAGE_KEY = 'lockin_v3_checked';
 const DAY_START_KEY = 'lockin_start_date';
 const SETTINGS_KEY = 'lockin_settings';
+const CHECKED_DATES_KEY = 'lockin_checked_dates';
 
 let checked = {};
+let checkedDates = {}; // skillId -> ISO date string, when it was checked off (powers streaks & daily quest)
 let currentFilter = 'all';
 let searchQuery = '';
 let currentView = 'phases';
@@ -10,6 +12,7 @@ let settings = { compactCards: false };
 
 let journalEntries = {};
 let journalSelectedDay = 1;
+let journalMode = 'view'; // 'view' | 'edit'
 
 // Old sync variables removed
 
@@ -207,12 +210,16 @@ const SKILL_ICONS_BY_PHASE = {
 // ─── State ─────────────────────────────────────────────────────
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) checked = JSON.parse(r); } catch (e) { checked = {}; }
+  try { const cd = localStorage.getItem(CHECKED_DATES_KEY); if (cd) checkedDates = JSON.parse(cd); } catch (e) { checkedDates = {}; }
   try { const s = localStorage.getItem(SETTINGS_KEY); if (s) settings = { ...settings, ...JSON.parse(s) }; } catch (e) { console.warn('Silenced error:', e); }
   try { const j = localStorage.getItem('lockin_journal'); if (j) journalEntries = JSON.parse(j); } catch (e) { journalEntries = {}; }
 }
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch (e) { console.warn('Silenced error:', e); }
   saveGlobalStateToSupabase();
+}
+function saveCheckedDates() {
+  try { localStorage.setItem(CHECKED_DATES_KEY, JSON.stringify(checkedDates)); } catch (e) { console.warn('Silenced error:', e); }
 }
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { console.warn('Silenced error:', e); } }
 function saveJournalState() {
@@ -302,7 +309,8 @@ async function handleLogout() {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
     checked = {};
-    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); } catch (e) { console.warn('Silenced error:', e); }
+    checkedDates = {};
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DAY_START_KEY); localStorage.removeItem('lockin_journal'); localStorage.removeItem(CHECKED_DATES_KEY); } catch (e) { console.warn('Silenced error:', e); }
     journalEntries = {};
     renderView();
   }
@@ -315,7 +323,7 @@ window.handleLogout = handleLogout;
 async function saveGlobalStateToSupabase() {
   if (!supabaseClient || !currentUser) return;
   try {
-    const payload = { checked, startDate: localStorage.getItem(DAY_START_KEY) };
+    const payload = { checked, startDate: localStorage.getItem(DAY_START_KEY), checkedDates };
     const { data: existing, error: findErr } = await supabaseClient.from('journals').select('id').eq('title', 'global_state');
     if (findErr) throw findErr;
 
@@ -354,6 +362,11 @@ async function loadJournalsFromSupabase() {
                 try { localStorage.setItem(DAY_START_KEY, payload.startDate); } catch (e) { console.warn('Silenced error:', e); }
                 updated = true;
               }
+            }
+            if (payload.checkedDates && JSON.stringify(payload.checkedDates) !== JSON.stringify(checkedDates)) {
+              checkedDates = payload.checkedDates;
+              try { localStorage.setItem(CHECKED_DATES_KEY, JSON.stringify(checkedDates)); } catch (e) { console.warn('Silenced error:', e); }
+              updated = true;
             }
           } catch (e) { console.warn('Silenced error:', e); }
         }
@@ -405,6 +418,48 @@ function getGlobalStats() {
   return { all, total, done, pct };
 }
 
+// ─── Streaks & Daily Quest (reward system) ──────────────────────
+function getCompletionDates() {
+  // Unique calendar days (YYYY-MM-DD) on which at least one skill was checked
+  const dates = new Set();
+  Object.values(checkedDates).forEach(iso => { if (iso) dates.add(iso.slice(0, 10)); });
+  return Array.from(dates).sort();
+}
+
+function getTodayCount() {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  return Object.values(checkedDates).filter(iso => iso && iso.slice(0, 10) === todayKey).length;
+}
+
+function getCurrentStreak() {
+  const datesSet = new Set(getCompletionDates());
+  const todayKey = new Date().toISOString().slice(0, 10);
+  let cursor = new Date();
+  // If today has no completions yet, don't zero the streak out prematurely —
+  // count backward from yesterday so the streak stays "alive" until the day ends.
+  if (!datesSet.has(todayKey)) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (true) {
+    const key = cursor.toISOString().slice(0, 10);
+    if (datesSet.has(key)) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+function getLongestStreak() {
+  const dates = getCompletionDates();
+  if (!dates.length) return 0;
+  let longest = 1, cur = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diffDays = Math.round((new Date(dates[i]) - new Date(dates[i - 1])) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) cur++;
+    else if (diffDays > 1) cur = 1;
+    longest = Math.max(longest, cur);
+  }
+  return longest;
+}
+
 function updateStats() {
   const { total, done, pct } = getGlobalStats();
   const el = (id) => document.getElementById(id);
@@ -445,6 +500,12 @@ function findFirstIncompleteSection() {
 function toggleSkill(skillId) {
   const wasDone = !!checked[skillId];
   checked[skillId] = !wasDone;
+  if (!wasDone) {
+    checkedDates[skillId] = new Date().toISOString();
+  } else {
+    delete checkedDates[skillId];
+  }
+  saveCheckedDates();
   saveState();
 
   const card = document.querySelector('.skill-card[data-skill-id="' + skillId + '"]');
@@ -781,16 +842,13 @@ function renderStatsView() {
   const nextRank = getNextRank(pct);
   const elapsed = getDetailedElapsedTime();
   const daysElapsed = elapsed ? (elapsed.totalMs / (1000 * 60 * 60 * 24)) : 0;
+  const effectiveDays = Math.max(daysElapsed, 1); // floor at 1 day so early activity can't imply an absurd daily rate
   const totalHours = getTotalHoursLogged();
 
   let paceText = "Not enough progress data yet.";
   let projectionText = "Check off your first skills and log study hours in your Journal to calculate speed projections.";
 
-  if (done > 0 && elapsed) {
-    // Floor at 1 day so a skill checked minutes into Day 1 doesn't
-    // extrapolate into an absurd "8 skills/day" pace / short ETA.
-    const effectiveDays = Math.max(daysElapsed, 1);
-
+  if (done > 0) {
     const skillsPerDay = done / effectiveDays;
     const hoursPerDay = totalHours / effectiveDays;
     const remainingSkills = total - done;
@@ -865,7 +923,7 @@ function renderStatsView() {
           </div>
           <div class="flex justify-between items-center pb-2">
             <span class="text-on-surface-variant">Average Speed</span>
-            <span class="text-primary font-bold">${done > 0 ? (done / Math.max(daysElapsed, 1)).toFixed(1) : '-'} skills / day</span>
+            <span class="text-primary font-bold">${done > 0 ? (done / effectiveDays).toFixed(1) : '-'} skills / day</span>
           </div>
         </div>
       </div>
@@ -890,99 +948,167 @@ function renderStatsView() {
 
 function renderTimerView() {
   const main = document.getElementById('main');
-  const { done, total } = getGlobalStats();
-
+  const { total, done, pct } = getGlobalStats();
   const start = getStartDate();
-  let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
-    <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Smart Timer</h1>`;
 
   if (!start) {
-    html += `<div class="p-16 text-center text-on-surface-variant flex flex-col items-center gap-6">
-      <span class="material-symbols-outlined text-6xl text-outline-variant">timer</span>
-      <p class="font-body-lg text-xl">Your 65-day journey has not started yet.</p>
-      <button class="bg-primary text-white hover:opacity-90 px-8 py-4 font-label-caps tracking-widest text-sm uppercase transition-opacity mt-4" onclick="startJourney()">BEGIN LOCK-IN</button>
-    </div></div>`;
-    main.innerHTML = html;
+    main.innerHTML = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8">
+      <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Daily Momentum</h1>
+      <div class="p-16 text-center text-on-surface-variant flex flex-col items-center gap-6">
+        <span class="material-symbols-outlined text-6xl text-outline-variant">local_fire_department</span>
+        <p class="font-body-lg text-xl">Your 65-day journey has not started yet.</p>
+        <p class="font-body-md text-on-surface-variant max-w-md">Streaks, daily quests, XP, and a trophy case are waiting for you the moment you lock in.</p>
+        <button class="bg-primary text-white hover:opacity-90 px-8 py-4 font-label-caps tracking-widest text-sm uppercase transition-opacity mt-4" onclick="startJourney()">BEGIN LOCK-IN</button>
+      </div></div>`;
     return;
   }
 
   const msElapsed = new Date() - start;
   const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
+  const effectiveDays = Math.max(daysElapsed, 1);
   const targetDays = 65;
-  const paceTarget = total / targetDays; // ~2.13 skills/day
+  const paceTarget = total / targetDays;
+  const dailyGoal = Math.max(1, Math.ceil(paceTarget));
+
+  const todayCount = getTodayCount();
+  const todayLogged = todayCount > 0;
+  const streak = getCurrentStreak();
+  const longestStreak = Math.max(getLongestStreak(), streak);
+  const totalHours = getTotalHoursLogged();
+  const xp = Math.round(done * 10 + totalHours * 5);
+  const goalMet = todayCount >= dailyGoal;
+  const goalPct = Math.min(100, Math.round((todayCount / dailyGoal) * 100));
+  const rank = getRank(pct);
+  const nextRankObj = getNextRank(pct);
 
   const expectedSkillsRaw = daysElapsed * paceTarget;
   const expectedSkills = Math.min(Math.floor(expectedSkillsRaw), total);
-  const currentPace = daysElapsed > 0.1 ? (done / daysElapsed) : 0;
-
+  const currentPace = done > 0 ? (done / effectiveDays) : 0;
   let projectedDays = 0;
   if (currentPace > 0) projectedDays = total / currentPace;
-
   const diff = done - expectedSkills;
 
   let feedback = '';
   let feedbackColor = '';
 
   if (done === 0 && daysElapsed < 1) {
-    feedback = `<strong>The clock is ticking.</strong> You just began your 65-day lock-in. To stay on track, you need to conquer at least ${Math.ceil(paceTarget)} skills today. Time to get to work.`;
+    feedback = `<strong>The clock is ticking.</strong> You just began your 65-day lock-in. To stay on track, you need to conquer at least ${dailyGoal} skills today. Time to get to work.`;
     feedbackColor = 'text-primary';
   } else if (diff > 0) {
     if (daysElapsed < 1) {
-      feedback = `<strong>Great start!</strong> You've already conquered ${done} skill(s) on Day 1. The baseline is ${Math.ceil(paceTarget)} skills per day. Keep building this early momentum.`;
+      feedback = `<strong>Great start!</strong> You've already conquered ${done} skill(s) on Day 1. The baseline is ${dailyGoal} skills per day. Keep building this early momentum.`;
     } else {
       const daysEarly = Math.max(0, targetDays - projectedDays);
       feedback = `<strong>Ahead of schedule!</strong> You are crushing it. You've conquered ${diff} more skill(s) than expected. If you maintain this pace, you will finish <strong>${daysEarly.toFixed(1)} days early</strong>. Outstanding discipline.`;
     }
     feedbackColor = 'text-secondary';
   } else if (diff < 0) {
-    if (daysElapsed < 1) {
-      feedback = `<strong>Still Day 1 — plenty of runway.</strong> The baseline is ${Math.ceil(paceTarget)} skill(s) per day and you've conquered ${done} so far. You've got until the day is out to hit pace.`;
-      feedbackColor = 'text-primary';
-    } else {
-      feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
-      feedbackColor = 'text-error';
-    }
+    feedback = `<strong>Behind schedule.</strong> You are short by ${Math.abs(diff)} skill(s). The lock-in requires relentless discipline. You need to push harder today to catch up to the baseline. Don't fall further behind.`;
+    feedbackColor = 'text-error';
   } else {
     feedback = `<strong>Perfectly on track.</strong> You are exactly where you need to be. Maintain this consistency.`;
     feedbackColor = 'text-primary';
   }
 
-  const expectedPct = Math.min(100, Math.round((expectedSkills / total) * 100));
-  const actualPct = Math.min(100, Math.round((done / total) * 100));
-
-  html += `
-    <div class="card flex flex-col gap-6 p-8 bg-surface-bright border border-outline-variant">
-      <p class="font-body-lg ${feedbackColor} text-lg md:text-xl leading-relaxed">${feedback}</p>
+  main.innerHTML = `<div class="col-span-1 md:col-span-12 flex flex-col gap-8 md:gap-10">
+    <div>
+      <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4">Daily Momentum</h1>
+      <p class="font-body-md text-on-surface-variant mt-3">Streaks, quests, and rewards for staying locked in.</p>
     </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-      <!-- Expected Mastery -->
-      <div class="card flex flex-col gap-4 p-8 border border-outline-variant relative overflow-hidden bg-surface-container-low">
-        <h3 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase mb-2">EXPECTED MASTERY</h3>
-        <span class="font-display text-5xl text-on-surface-variant">${expectedSkills} <span class="text-2xl text-outline-variant">/ ${total}</span></span>
-        <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.floor(daysElapsed) + 1}</span>
-        <div class="w-full h-[4px] bg-surface-container relative mt-4">
-          <div class="absolute top-0 left-0 h-full bg-outline-variant transition-all duration-1000" style="width:${expectedPct}%"></div>
+
+    <!-- Streak + Quest -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-gutter">
+      <div class="card bg-surface-bright border border-outline-variant p-8 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase">Study Streak</h3>
+          ${todayLogged
+      ? `<span class="font-caption text-secondary flex items-center gap-1 text-xs"><span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1;">check_circle</span> Secured today</span>`
+      : `<span class="font-caption text-error flex items-center gap-1 text-xs"><span class="material-symbols-outlined text-[16px]">warning</span> At risk</span>`}
+        </div>
+        <div class="flex items-end gap-3">
+          <span class="material-symbols-outlined text-6xl ${streak > 0 ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+          <span class="font-display text-6xl text-primary leading-none">${streak}</span>
+          <span class="font-body-md text-on-surface-variant pb-2">day${streak === 1 ? '' : 's'}</span>
+        </div>
+        <p class="font-body-md text-sm text-on-surface-variant">${todayLogged ? "You've logged progress today. Keep the fire burning." : "Complete a skill today to extend your streak."}</p>
+        <div class="flex justify-between items-center border-t border-outline-variant pt-4 mt-2 text-sm">
+          <span class="text-on-surface-variant">Longest streak</span>
+          <span class="text-primary font-bold">${longestStreak} day${longestStreak === 1 ? '' : 's'}</span>
         </div>
       </div>
-      
-      <!-- Actual Mastery -->
-      <div class="card flex flex-col gap-4 p-8 border ${diff >= 0 ? 'border-secondary' : 'border-error'} relative overflow-hidden bg-white">
-        <h3 class="font-label-caps text-label-caps ${diff >= 0 ? 'text-secondary' : 'text-error'} tracking-widest uppercase mb-2">ACTUAL MASTERY</h3>
-        <span class="font-display text-5xl ${diff >= 0 ? 'text-primary' : 'text-error'}">${done} <span class="text-2xl text-on-surface-variant opacity-60">/ ${total}</span></span>
-        <span class="font-caption text-sm text-on-surface-variant">Skills you actually have right now</span>
-        <div class="w-full h-[4px] bg-surface-container relative mt-4">
-          <div class="absolute top-0 left-0 h-full ${diff >= 0 ? 'bg-secondary' : 'bg-error'} transition-all duration-1000" style="width:${actualPct}%"></div>
+
+      <div class="card ${goalMet ? 'border-secondary' : ''} bg-white border border-outline-variant p-8 flex flex-col gap-4">
+        <h3 class="font-label-caps text-label-caps ${goalMet ? 'text-secondary' : 'text-on-surface-variant'} tracking-widest uppercase">Today's Quest</h3>
+        <div class="flex items-center gap-4">
+          <span class="material-symbols-outlined text-6xl ${goalMet ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings:'FILL' ${goalMet ? 1 : 0};">${goalMet ? 'redeem' : 'lock'}</span>
+          <div>
+            <div class="font-display text-4xl text-primary">${todayCount} <span class="text-xl text-on-surface-variant">/ ${dailyGoal}</span></div>
+            <div class="font-caption text-on-surface-variant text-sm">skills conquered today</div>
+          </div>
         </div>
+        <div class="w-full progress-bar-bg relative mt-1">
+          <div class="absolute top-0 left-0 h-full progress-bar-fill" style="width:${goalPct}%"></div>
+        </div>
+        <p class="font-body-md text-sm ${goalMet ? 'text-secondary font-medium' : 'text-on-surface-variant'}">${goalMet ? 'Quest complete! Reward chest unlocked — nice work today.' : `Conquer ${dailyGoal - todayCount} more skill${(dailyGoal - todayCount) === 1 ? '' : 's'} today to unlock today's reward.`}</p>
+      </div>
+    </div>
+
+    <!-- XP / Rank / Target strip -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-gutter">
+      <div class="bg-surface-bright border border-outline-variant p-6 flex flex-col gap-1">
+        <span class="font-caption text-xs text-on-surface-variant">EXPERIENCE EARNED</span>
+        <span class="font-display text-3xl text-primary">${xp} <span class="text-sm text-on-surface-variant font-body-md">XP</span></span>
+        <span class="font-caption text-xs text-on-surface-variant">10 XP / skill · 5 XP / study hour</span>
+      </div>
+      <div class="bg-surface-bright border border-outline-variant p-6 flex flex-col gap-1">
+        <span class="font-caption text-xs text-on-surface-variant">CURRENT RANK</span>
+        <span class="font-display text-2xl text-primary flex items-center gap-2"><span class="material-symbols-outlined text-secondary" style="font-variation-settings:'FILL' 1;">${rank.icon}</span> ${rank.name}</span>
+        <span class="font-caption text-xs text-on-surface-variant">${nextRankObj ? `${nextRankObj.min - pct}% to ${nextRankObj.name}` : 'Max rank achieved'}</span>
+      </div>
+      <div class="bg-surface-bright border border-outline-variant p-6 flex flex-col gap-1">
+        <span class="font-caption text-xs text-on-surface-variant">DAILY TARGET</span>
+        <span class="font-display text-3xl text-primary">${dailyGoal} <span class="text-sm text-on-surface-variant font-body-md">skills/day</span></span>
+        <span class="font-caption text-xs text-on-surface-variant">To finish in 65 days</span>
+      </div>
+    </div>
+
+    <!-- Pace Check (kept from the original Smart Timer) -->
+    <div class="card flex flex-col gap-6 p-8 bg-surface-bright border border-outline-variant">
+      <h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 uppercase tracking-widest text-xs">PACE CHECK</h3>
+      <p class="font-body-lg ${feedbackColor} text-lg md:text-xl leading-relaxed">${feedback}</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="flex flex-col gap-4 p-6 border border-outline-variant bg-surface-container-low">
+          <h4 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase mb-1">EXPECTED MASTERY</h4>
+          <span class="font-display text-4xl text-on-surface-variant">${expectedSkills} <span class="text-xl text-outline-variant">/ ${total}</span></span>
+          <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.max(1, Math.floor(daysElapsed))}</span>
+        </div>
+        <div class="flex flex-col gap-4 p-6 border ${diff >= 0 ? 'border-secondary' : 'border-error'} bg-white">
+          <h4 class="font-label-caps text-label-caps ${diff >= 0 ? 'text-secondary' : 'text-error'} tracking-widest uppercase mb-1">ACTUAL MASTERY</h4>
+          <span class="font-display text-4xl ${diff >= 0 ? 'text-primary' : 'text-error'}">${done} <span class="text-xl text-on-surface-variant opacity-60">/ ${total}</span></span>
+          <span class="font-caption text-sm text-on-surface-variant">Skills you actually have right now</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trophy Case -->
+    <div class="flex flex-col gap-4">
+      <h3 class="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-2">Trophy Case</h3>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        ${RANKS.map(r => {
+        const unlocked = pct >= r.min;
+        return `<div class="flex flex-col items-center gap-2 p-5 border ${unlocked ? 'border-secondary bg-white' : 'border-outline-variant bg-surface-container-low opacity-60'} text-center">
+            <span class="material-symbols-outlined text-3xl ${unlocked ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings:'FILL' ${unlocked ? 1 : 0};">${unlocked ? r.icon : 'lock'}</span>
+            <span class="font-body-md text-sm ${unlocked ? 'text-primary font-medium' : 'text-on-surface-variant'}">${r.name}</span>
+            <span class="font-caption text-xs text-on-surface-variant">${r.min}%</span>
+          </div>`;
+      }).join('')}
       </div>
     </div>
   </div>`;
-
-  main.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// VIEW: BETA (UpNext-style Stubs dashboard)
+// VIEW: STUBS (UpNext-style dashboard)
 // ═══════════════════════════════════════════════════════════════════
 
 const SPINE_COLORS = [
@@ -1003,7 +1129,7 @@ function generateBarcode() {
   return bars.join('');
 }
 
-function renderBetaView() {
+function renderStubsView() {
   const main = document.getElementById('main');
   const { done, total } = getGlobalStats();
   const start = getStartDate();
@@ -1041,7 +1167,6 @@ function renderBetaView() {
   let html = `<div class="col-span-1 md:col-span-12 flex flex-col gap-12">
     <div class="flex items-center justify-between">
       <h1 class="font-display text-display text-primary border-b border-outline-variant pb-4 flex-1">Stubs</h1>
-      <span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase text-xs">BETA</span>
     </div>`;
 
   // ──── TICKET STUB ────
@@ -1454,6 +1579,53 @@ function escapeHTML(str) {
     .replace(/'/g, '&#039;');
 }
 
+function renderJournalReadOnly(currentEntry, day) {
+  const moodMap = {
+    excited: { icon: 'sentiment_excited', label: 'Excited' },
+    neutral: { icon: 'sentiment_neutral', label: 'Neutral' },
+    sad: { icon: 'sentiment_dissatisfied', label: 'Struggled' }
+  };
+  const moodMeta = moodMap[currentEntry.mood || 'neutral'] || moodMap.neutral;
+  const breakthroughs = (currentEntry.breakthroughs || []).filter(b => b && b.trim());
+
+  return `
+    <div class="max-w-[800px] w-full mx-auto">
+      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8 border-b border-outline-variant pb-6">
+        <div>
+          <div class="font-label-caps text-label-caps text-on-surface-variant mb-1">DAY ${String(day).padStart(2, '0')}</div>
+          <h2 class="font-headline-lg text-headline-lg text-primary">${escapeHTML(currentEntry.title || 'Untitled Entry')}</h2>
+          <div class="flex items-center gap-5 mt-3 text-sm text-on-surface-variant">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px] text-secondary" style="font-variation-settings:'FILL' 1;">${moodMeta.icon}</span> ${moodMeta.label}</span>
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">schedule</span> ${currentEntry.hours || 0} hrs logged</span>
+          </div>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <button class="px-4 py-2 border border-primary text-primary font-label-caps text-xs uppercase hover:bg-surface-container-low transition-colors" onclick="enterJournalEdit()">Edit</button>
+          <button class="px-4 py-2 border border-error text-error font-label-caps text-xs uppercase hover:bg-error hover:text-on-error transition-colors" onclick="deleteJournalEntry()">Delete</button>
+        </div>
+      </div>
+
+      <div class="mb-10">
+        <label class="font-label-caps text-label-caps text-on-surface-variant block mb-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">code</span> TECHNICAL LOG & REFLECTIONS
+        </label>
+        <div class="whitespace-pre-wrap font-mono text-sm leading-relaxed border border-outline-variant p-4 bg-surface-container-low text-primary min-h-[100px]">${currentEntry.text ? escapeHTML(currentEntry.text) : '<span class="text-on-surface-variant italic">No notes recorded.</span>'}</div>
+      </div>
+
+      <div class="mb-4">
+        <label class="font-label-caps text-label-caps text-on-surface-variant block mb-3">KEY BREAKTHROUGHS</label>
+        <div class="flex flex-col gap-1">
+          ${breakthroughs.length ? breakthroughs.map(b => `
+            <div class="flex items-center gap-3 py-2 border-b border-outline-variant/50">
+              <span class="material-symbols-outlined text-secondary" style="font-size:20px;">check_circle</span>
+              <span class="font-body-md text-primary">${escapeHTML(b)}</span>
+            </div>`).join('') : '<p class="font-body-md text-on-surface-variant italic">No breakthroughs logged for this entry.</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderJournalView() {
   const main = document.getElementById('main');
   const dayCount = getDayCount();
@@ -1473,19 +1645,8 @@ function renderJournalView() {
     journalSelectedDay = dayCount;
   }
 
-  const currentEntry = journalEntries[journalSelectedDay] || {
-    title: '',
-    mood: 'neutral',
-    hours: '',
-    text: '',
-    breakthroughs: ['', '']
-  };
-
-  if (!currentEntry.breakthroughs) {
-    currentEntry.breakthroughs = ['', ''];
-  }
-
-  activeJournalMood = currentEntry.mood || 'neutral';
+  const currentEntry = journalEntries[journalSelectedDay] || null;
+  const hasEntry = !!(currentEntry && (currentEntry.title || currentEntry.text || (currentEntry.breakthroughs || []).some(b => b && b.trim())));
 
   let sidebarDaysHtml = '';
   for (let d = dayCount; d >= 1; d--) {
@@ -1504,16 +1665,97 @@ function renderJournalView() {
     `;
   }
 
-  const prompts = [
-    "What was your most challenging concept today, and how did you approach deconstructing it?",
-    "How did you apply today's learning to a real-world problem or scenario?",
-    "What is one thing you understand today that you didn't understand yesterday?",
-    "Did you encounter any bugs or errors today? How did you debug them?",
-    "What was the most interesting resource or article you read today?",
-    "How are you feeling about your progress so far? What is keeping you motivated?",
-    "Summarize today's learning in a single sentence."
-  ];
-  const promptText = prompts[journalSelectedDay % prompts.length];
+  let sectionContent = '';
+
+  if (journalMode === 'edit') {
+    const entry = currentEntry || { title: '', mood: 'neutral', hours: '', text: '', breakthroughs: ['', ''] };
+    if (!entry.breakthroughs) entry.breakthroughs = ['', ''];
+    activeJournalMood = entry.mood || 'neutral';
+
+    const prompts = [
+      "What was your most challenging concept today, and how did you approach deconstructing it?",
+      "How did you apply today's learning to a real-world problem or scenario?",
+      "What is one thing you understand today that you didn't understand yesterday?",
+      "Did you encounter any bugs or errors today? How did you debug them?",
+      "What was the most interesting resource or article you read today?",
+      "How are you feeling about your progress so far? What is keeping you motivated?",
+      "Summarize today's learning in a single sentence."
+    ];
+    const promptText = prompts[journalSelectedDay % prompts.length];
+
+    sectionContent = `
+      <div class="max-w-[800px] w-full mx-auto">
+        <!-- Meta Header -->
+        <div class="mb-8 md:mb-12 border-b border-outline-variant pb-6 md:pb-8">
+          <input id="journal-title" class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none focus:ring-0 text-xl md:text-3xl" placeholder="Entry Title..." type="text" value="${escapeHTML(entry.title || '')}"/>
+          <div class="flex flex-wrap gap-6 md:gap-8">
+            <div class="flex-1 min-w-[150px]">
+              <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">DAILY MOOD</label>
+              <div class="flex gap-4" id="mood-selector">
+                <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'excited' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'excited' ? 1 : 0};" onclick="setJournalMood('excited')">sentiment_excited</span>
+                <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'neutral' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'neutral' ? 1 : 0};" onclick="setJournalMood('neutral')">sentiment_neutral</span>
+                <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'sad' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'sad' ? 1 : 0};" onclick="setJournalMood('sad')">sentiment_dissatisfied</span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-[150px]">
+              <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">HOURS LOGGED</label>
+              <input id="journal-hours" class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0" type="number" step="0.1" value="${entry.hours || ''}"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily Prompt -->
+        <div class="card bg-surface-bright p-6 md:p-8 mb-8 md:mb-12 relative overflow-hidden border border-outline-variant rounded-none">
+          <div class="absolute top-0 left-0 w-1 h-full bg-secondary"></div>
+          <div class="font-label-caps text-label-caps text-secondary mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span> DAILY PROMPT
+          </div>
+          <p class="font-body-lg text-body-lg text-primary italic text-sm md:text-base">${promptText}</p>
+        </div>
+
+        <!-- Main Text Area -->
+        <div class="mb-8 md:mb-12">
+          <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">code</span> TECHNICAL LOG & REFLECTIONS
+          </label>
+          <textarea id="journal-text" class="w-full min-h-[250px] md:min-h-[300px] outline-none resize-y bg-transparent font-mono text-sm leading-relaxed border border-outline-variant p-4 focus:border-primary transition-colors focus:ring-0" placeholder="Start writing...">${escapeHTML(entry.text || '')}</textarea>
+        </div>
+
+        <!-- Key Breakthroughs -->
+        <div class="mb-16 md:mb-24">
+          <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">KEY BREAKTHROUGHS</label>
+          <div id="breakthroughs-list" class="flex flex-col gap-2">
+            ${(entry.breakthroughs || []).map((bt, idx) => `
+              <div class="flex items-center gap-4">
+                <span class="material-symbols-outlined ${bt ? 'text-secondary' : 'text-outline-variant'}" style="font-size: 20px;">
+                  ${bt ? 'check_circle' : 'radio_button_unchecked'}
+                </span>
+                <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0 journal-bt-input" type="text" data-index="${idx}" value="${escapeHTML(bt || '')}" placeholder="${idx === 0 ? 'e.g. Mastered tonal stepping for depth' : 'Add breakthrough...'}" oninput="updateBtIcons()"/>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-8 border-t border-outline-variant gap-4">
+          <span id="save-status" class="self-center font-caption text-on-surface-variant italic text-sm"></span>
+          <button class="font-label-caps text-label-caps px-6 py-3 text-on-surface-variant hover:opacity-80 transition-opacity uppercase tracking-wider text-xs md:text-sm border border-outline-variant bg-transparent" onclick="cancelJournalEdit()">Cancel</button>
+          ${hasEntry ? `<button class="font-label-caps text-label-caps px-6 py-3 text-error hover:opacity-80 transition-opacity uppercase tracking-wider text-xs md:text-sm border border-error bg-transparent" onclick="deleteJournalEntry()">Delete Entry</button>` : ''}
+          <button class="btn-primary font-label-caps text-label-caps px-6 py-3" onclick="saveJournalEntry()">Save Entry</button>
+        </div>
+      </div>
+    `;
+  } else if (hasEntry) {
+    sectionContent = renderJournalReadOnly(currentEntry, journalSelectedDay);
+  } else {
+    sectionContent = `
+      <div class="w-full flex flex-col items-center justify-center text-center p-12 min-h-[400px]">
+        <span class="material-symbols-outlined text-6xl text-on-surface-variant mb-4">edit_note</span>
+        <h2 class="font-display text-2xl font-light text-primary mb-2">No Entry for Day ${String(journalSelectedDay).padStart(2, '0')}</h2>
+        <p class="font-body-md text-on-surface-variant max-w-md mb-6">Nothing logged yet for this day. Capture what you learned while it's fresh.</p>
+        <button class="btn-primary px-8 py-3 font-label-caps tracking-widest text-sm uppercase" onclick="enterJournalEdit()">+ New Entry</button>
+      </div>
+    `;
+  }
 
   main.innerHTML = `
     <div class="col-span-12 flex flex-col md:flex-row w-full min-h-0 md:min-h-[calc(100vh-64px-150px)] gap-gutter">
@@ -1525,72 +1767,18 @@ function renderJournalView() {
           <div class="w-full h-[2px] bg-surface-container mt-2">
             <div class="h-full bg-secondary" style="width: ${(dayCount / 65) * 100}%;"></div>
           </div>
+          <button class="w-full mt-4 py-2.5 bg-primary text-white font-label-caps text-xs uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2" onclick="logToday()">
+            <span class="material-symbols-outlined text-[16px]">edit_square</span> Log Today
+          </button>
         </div>
         <div class="flex-grow flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto gap-2 md:gap-0 scrollbar-none pb-2 md:pb-0">
           ${sidebarDaysHtml}
         </div>
       </aside>
 
-      <!-- Editor Area -->
+      <!-- Content Area -->
       <section class="flex-grow bg-white flex flex-col h-auto md:h-full overflow-y-auto p-4 md:p-8 relative border border-outline-variant">
-        <div class="max-w-[800px] w-full mx-auto">
-          <!-- Meta Header -->
-          <div class="mb-8 md:mb-12 border-b border-outline-variant pb-6 md:pb-8">
-            <input id="journal-title" class="text-headline-lg font-headline-lg text-primary w-full outline-none mb-4 bg-transparent border-none focus:ring-0 text-xl md:text-3xl" placeholder="Entry Title..." type="text" value="${escapeHTML(currentEntry.title || '')}"/>
-            <div class="flex flex-wrap gap-6 md:gap-8">
-              <div class="flex-1 min-w-[150px]">
-                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">DAILY MOOD</label>
-                <div class="flex gap-4" id="mood-selector">
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'excited' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'excited' ? 1 : 0};" onclick="setJournalMood('excited')">sentiment_excited</span>
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'neutral' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'neutral' ? 1 : 0};" onclick="setJournalMood('neutral')">sentiment_neutral</span>
-                  <span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors ${activeJournalMood === 'sad' ? 'text-secondary' : 'text-outline-variant'}" style="font-variation-settings: 'FILL' ${activeJournalMood === 'sad' ? 1 : 0};" onclick="setJournalMood('sad')">sentiment_dissatisfied</span>
-                </div>
-              </div>
-              <div class="flex-1 min-w-[150px]">
-                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">HOURS LOGGED</label>
-                <input id="journal-hours" class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0" type="number" step="0.1" value="${currentEntry.hours || ''}"/>
-              </div>
-            </div>
-          </div>
-
-          <!-- Daily Prompt -->
-          <div class="card bg-surface-bright p-6 md:p-8 mb-8 md:mb-12 relative overflow-hidden border border-outline-variant rounded-none">
-            <div class="absolute top-0 left-0 w-1 h-full bg-secondary"></div>
-            <div class="font-label-caps text-label-caps text-secondary mb-2 flex items-center gap-2">
-              <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span> DAILY PROMPT
-            </div>
-            <p class="font-body-lg text-body-lg text-primary italic text-sm md:text-base">${promptText}</p>
-          </div>
-
-          <!-- Main Text Area -->
-          <div class="mb-8 md:mb-12">
-            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4 flex items-center gap-2">
-              <span class="material-symbols-outlined text-[16px]">code</span> TECHNICAL LOG & REFLECTIONS
-            </label>
-            <textarea id="journal-text" class="w-full min-h-[250px] md:min-h-[300px] outline-none resize-y bg-transparent font-mono text-sm leading-relaxed border border-outline-variant p-4 focus:border-primary transition-colors focus:ring-0" placeholder="Start writing...">${escapeHTML(currentEntry.text || '')}</textarea>
-          </div>
-
-          <!-- Key Breakthroughs -->
-          <div class="mb-16 md:mb-24">
-            <label class="font-label-caps text-label-caps text-on-surface-variant block mb-4">KEY BREAKTHROUGHS</label>
-            <div id="breakthroughs-list" class="flex flex-col gap-2">
-              ${(currentEntry.breakthroughs || []).map((bt, idx) => `
-                <div class="flex items-center gap-4">
-                  <span class="material-symbols-outlined ${bt ? 'text-secondary' : 'text-outline-variant'}" style="font-size: 20px;">
-                    ${bt ? 'check_circle' : 'radio_button_unchecked'}
-                  </span>
-                  <input class="w-full border-b border-outline-variant pb-1 font-body-md text-primary outline-none focus:border-primary transition-colors bg-transparent focus:ring-0 journal-bt-input" type="text" data-index="${idx}" value="${escapeHTML(bt || '')}" placeholder="${idx === 0 ? 'e.g. Mastered tonal stepping for depth' : 'Add breakthrough...'}" oninput="updateBtIcons()"/>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="flex justify-end pt-8 border-t border-outline-variant gap-4">
-            <span id="save-status" class="self-center font-caption text-on-surface-variant italic text-sm"></span>
-            ${currentEntry.id || currentEntry.text || currentEntry.title ? `<button class="font-label-caps text-label-caps px-6 py-3 text-error hover:opacity-80 transition-opacity uppercase tracking-wider text-xs md:text-sm border border-error bg-transparent" onclick="deleteJournalEntry()">Delete Entry</button>` : ''}
-            <button class="btn-primary font-label-caps text-label-caps px-6 py-3" onclick="saveJournalEntry()">Save Entry</button>
-          </div>
-        </div>
+        ${sectionContent}
       </section>
     </div>
   `;
@@ -1598,6 +1786,23 @@ function renderJournalView() {
 
 function selectJournalDay(d) {
   journalSelectedDay = d;
+  journalMode = 'view';
+  renderJournalView();
+}
+
+function enterJournalEdit() {
+  journalMode = 'edit';
+  renderJournalView();
+}
+
+function cancelJournalEdit() {
+  journalMode = 'view';
+  renderJournalView();
+}
+
+function logToday() {
+  journalSelectedDay = getDayCount();
+  journalMode = 'edit';
   renderJournalView();
 }
 
@@ -1691,6 +1896,7 @@ async function saveJournalEntry() {
   }
 
   setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  journalMode = 'view';
   renderJournalView();
 }
 
@@ -1719,6 +1925,7 @@ async function deleteJournalEntry() {
 
   if (status) status.textContent = 'Deleted.';
   setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+  journalMode = 'view';
   renderJournalView();
 }
 
@@ -1727,6 +1934,9 @@ window.setJournalMood = setJournalMood;
 window.updateBtIcons = updateBtIcons;
 window.saveJournalEntry = saveJournalEntry;
 window.deleteJournalEntry = deleteJournalEntry;
+window.enterJournalEdit = enterJournalEdit;
+window.cancelJournalEdit = cancelJournalEdit;
+window.logToday = logToday;
 
 function openPanel(panelId, overlayId) {
   document.getElementById(panelId).classList.add('open');
@@ -1866,7 +2076,7 @@ function renderSettings() {
   // Sync UI removed
 
   document.getElementById('btn-export').addEventListener('click', function () {
-    const data = { checked, startDate: localStorage.getItem(DAY_START_KEY), exportedAt: new Date().toISOString(), version: 3 };
+    const data = { checked, checkedDates, startDate: localStorage.getItem(DAY_START_KEY), exportedAt: new Date().toISOString(), version: 4 };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = 'lockin-progress-' + new Date().toISOString().split('T')[0] + '.json';
@@ -1886,7 +2096,9 @@ function renderSettings() {
         if (data.checked && typeof data.checked === 'object') {
           if (confirm('Import will replace your current progress. Continue?')) {
             checked = data.checked;
+            if (data.checkedDates && typeof data.checkedDates === 'object') { checkedDates = data.checkedDates; }
             if (data.startDate) { try { localStorage.setItem(DAY_START_KEY, data.startDate); } catch (e) { console.warn('Silenced error:', e); } }
+            saveCheckedDates();
             saveState();
             closePanel('settings-panel', 'settings-overlay');
             renderView();
@@ -1900,7 +2112,9 @@ function renderSettings() {
   document.getElementById('btn-reset').addEventListener('click', function () {
     if (confirm('⚠️ Reset ALL progress? This cannot be undone.')) {
       checked = {};
+      checkedDates = {};
       try { localStorage.removeItem(DAY_START_KEY); } catch (e) { console.warn('Silenced error:', e); }
+      saveCheckedDates();
       saveState();
       closePanel('settings-panel', 'settings-overlay');
       renderView();
@@ -1946,7 +2160,7 @@ function renderView() {
     case 'timer': renderTimerView(); break;
     case 'resources': renderResourcesView(); break;
     case 'journal': renderJournalView(); break;
-    case 'beta': renderBetaView(); break;
+    case 'stubs': renderStubsView(); break;
   }
   updateDayBadge();
   initScrollReveal();
