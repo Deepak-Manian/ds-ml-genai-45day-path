@@ -734,7 +734,7 @@ function renderPhasesView() {
 
   let rendered = 0;
   for (const sec of SECTIONS) {
-    const el = renderSection(sec, sec.id === firstIncomplete);
+    const el = renderSection(sec, true);
     if (el) { roadmap.appendChild(el); rendered++; }
   }
   if (!rendered) roadmap.innerHTML += '<div class="p-8 text-center text-on-surface-variant"><span class="material-symbols-outlined text-4xl mb-2">emoji_events</span><p>All skills conquered</p></div>';
@@ -969,6 +969,7 @@ function renderTimerView() {
   const targetDays = 65;
   const paceTarget = total / targetDays;
   const dailyGoal = Math.max(1, Math.ceil(paceTarget));
+  const dayNum = Math.max(1, getDayCount()); // same day-counting convention used in the header badge & Journal
 
   const todayCount = getTodayCount();
   const todayLogged = todayCount > 0;
@@ -1068,22 +1069,26 @@ function renderTimerView() {
       <div class="bg-surface-bright border border-outline-variant p-6 flex flex-col gap-1">
         <span class="font-caption text-xs text-on-surface-variant">DAILY TARGET</span>
         <span class="font-display text-3xl text-primary">${dailyGoal} <span class="text-sm text-on-surface-variant font-body-md">skills/day</span></span>
-        <span class="font-caption text-xs text-on-surface-variant">To finish in 65 days</span>
+        <span class="font-caption text-xs text-on-surface-variant">Rounded up as a buffer — exact pace is ${paceTarget.toFixed(2)}/day</span>
       </div>
     </div>
 
     <!-- Pace Check (kept from the original Smart Timer) -->
     <div class="card flex flex-col gap-6 p-8 bg-surface-bright border border-outline-variant">
-      <h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-2 uppercase tracking-widest text-xs">PACE CHECK</h3>
+      <div class="border-b border-outline-variant pb-2">
+        <h3 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest text-xs">PACE CHECK</h3>
+        <p class="font-caption text-xs text-on-surface-variant mt-1">Measured against the exact ${paceTarget.toFixed(2)} skills/day needed to finish precisely on Day 65 — not the rounded-up Daily Target above.</p>
+      </div>
       <p class="font-body-lg ${feedbackColor} text-lg md:text-xl leading-relaxed">${feedback}</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div class="flex flex-col gap-4 p-6 border border-outline-variant bg-surface-container-low">
           <h4 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase mb-1">EXPECTED MASTERY</h4>
           <span class="font-display text-4xl text-on-surface-variant">${expectedSkills} <span class="text-xl text-outline-variant">/ ${total}</span></span>
-          <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${Math.max(1, Math.floor(daysElapsed))}</span>
+          <span class="font-caption text-sm text-on-surface-variant">Skills you should have by Day ${dayNum}</span>
         </div>
         <div class="flex flex-col gap-4 p-6 border ${diff >= 0 ? 'border-secondary' : 'border-error'} bg-white">
           <h4 class="font-label-caps text-label-caps ${diff >= 0 ? 'text-secondary' : 'text-error'} tracking-widest uppercase mb-1">ACTUAL MASTERY</h4>
+
           <span class="font-display text-4xl ${diff >= 0 ? 'text-primary' : 'text-error'}">${done} <span class="text-xl text-on-surface-variant opacity-60">/ ${total}</span></span>
           <span class="font-caption text-sm text-on-surface-variant">Skills you actually have right now</span>
         </div>
